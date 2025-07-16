@@ -1,0 +1,110 @@
+#ifndef MAIN_H_INCLUDED
+#define MAIN_H_INCLUDED
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "stm32g4xx_ll_conf.h"
+
+#ifdef __cplusplus
+}
+#endif
+
+#include "pin_ll_g4xx.h"
+#include "uart_ll_g4xx.h"
+#include "delay_tim.h"
+#include "kx132_ic.h"
+#include "l3gd20h_ic.h"
+#include "mmc5983_ic.h"
+#include "mb85_ic.h"
+
+#define bitRead(value, bit) (((value) >> (bit)) & 0x01)
+#define bitSet(value, bit) ((value) |= (1UL << (bit)))
+#define bitClear(value, bit) ((value) &= ~(1UL << (bit)))
+#define bitWrite(value, bit, bitvalue) (bitvalue ? bitSet(value, bit) : bitClear(value, bit))
+
+//#define MAX_W_STOP 1
+
+typedef Pin<PORTA, 15, LL_GPIO_MODE_OUTPUT, LL_GPIO_SPEED_FREQ_MEDIUM, LL_GPIO_OUTPUT_PUSHPULL, LL_GPIO_PULL_NO> G_red_led;
+typedef Pin<PORTB, 3, LL_GPIO_MODE_OUTPUT, LL_GPIO_SPEED_FREQ_MEDIUM, LL_GPIO_OUTPUT_PUSHPULL, LL_GPIO_PULL_NO> G_green_led;
+typedef Pin<PORTB, 11, LL_GPIO_MODE_OUTPUT, LL_GPIO_SPEED_HIGH> G_pin_int;
+
+typedef Delay_tim<TIM::TIM_16> G_delay;
+#define DELAY_MS(ms) G_delay::wait_ms(ms)
+
+typedef Pin<PORTB, 3, LL_GPIO_MODE_OUTPUT, LL_GPIO_SPEED_FREQ_HIGH> Fram_cs_pin;
+typedef Hw_spi<SPI2_BASE, Af_pin<PORTB, 15>, Af_pin<PORTB, 14>, Af_pin<PORTB, 13>> Fram_spi;
+typedef ic_mb85<MB85RS256_SIZE, Fram_spi, Fram_cs_pin> G_fram;
+
+typedef Hw_spi<SPI1_BASE, Af_pin<PORTA, 6, LL_GPIO_AF_5>, Af_pin<PORTA, 7, LL_GPIO_AF_5>, Af_pin<PORTA, 5, LL_GPIO_AF_5>> Shared_spi;
+typedef Kx132_ic<Shared_spi, Pin<PORTB, 0, LL_GPIO_MODE_OUTPUT>> Kx132;
+typedef L3gd20h_ic<Shared_spi, Pin<PORTA, 4, LL_GPIO_MODE_OUTPUT>> L3gd20h;
+typedef Mmc5983_ic<Shared_spi, Pin<PORTB, 1, LL_GPIO_MODE_OUTPUT>> Mmc5983;
+
+extern Kx132 g_axel;
+extern L3gd20h g_gyro;
+extern Mmc5983 g_mag;
+
+struct Vec
+{
+    float X;
+    float Y;
+    float Z;
+};
+
+struct Matrix_3_3
+{
+    float XX; float YX; float ZX;
+    float XY; float YY; float ZY;
+    float XZ; float YZ; float ZZ;
+};
+
+struct Cal
+{
+    struct Vec offset;
+    struct Matrix_3_3 sens;
+};
+
+struct Set
+{
+   uint32_t MA_WINDOW_SIZE; //32
+   uint32_t MLD_WINDOW_SIZE; //32
+   uint32_t N; //128
+   uint32_t K; //128
+   uint32_t auto_delta; //1
+   uint32_t INTERRUPT_BY_ANGLE_PATH; // 0
+   uint16_t MOVEMENT_CMP_VALUE; //300
+   float W_MIN; //3.14
+   float W_MAX; //18.84
+   float K_predict; //0.5
+   float APS_DELTA; //PI/360
+   float history_angle; //(20*PI)/180
+   float K_delta; //2.5
+};
+
+enum Aps_state
+{
+    APS_READY,
+    APS_WAIT_NEXT_POINT,
+    APS_COMPLETE
+};
+
+enum Fram_markup
+{
+    G_OFFSET_ADDR = 0,
+    M_OFFSET_ADDR = G_OFFSET_ADDR + sizeof(Cal),
+    W_OFFSET_ADDR = G_OFFSET_ADDR + 2 * sizeof(Cal),
+    SETTINGS_ADDR = G_OFFSET_ADDR + 3 * sizeof(Cal),
+};
+
+Vec vctr_summ(Vec a, Vec b);
+Vec vctr_diff(Vec a, Vec b);
+Vec vctr_mltp(Vec a, Vec b);
+Vec vctr_mltp_n(float a, Vec b);
+Vec callibrate(Vec Data, Cal calib);
+float predict(float *abc, float *data, float S_x[5], int N);
+void S_X(float S_x[5], int N);
+float modul(Vec a);
+
+#endif /* MAIN_H_INCLUDED */
