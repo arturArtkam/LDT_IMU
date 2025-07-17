@@ -181,6 +181,9 @@
 		<Unit filename="LL\Inc\stm32g4xx_ll_usb.h" />
 		<Unit filename="LL\Inc\stm32g4xx_ll_utils.h" />
 		<Unit filename="LL\Inc\stm32g4xx_ll_wwdg.h" />
+		<Unit filename="LL\Src\stm32g4xx_ll_exti.c">
+			<Option compilerVar="CC" />
+		</Unit>
 		<Unit filename="LL\Src\stm32g4xx_ll_gpio.c">
 			<Option compilerVar="CC" />
 		</Unit>
@@ -221,14 +224,14 @@
 				</target_debugging_settings>
 				<target_debugging_settings target="Release" active_interface="EBlink">
 					<debug_interface interface_id="" ip_address="" ip_port="" path="" executable="" description="STM32G474xx.svd" dont_start_server="false" backoff_time="" options="2" reg_filter="0" active_family="" gdb_before_conn="" gdb_after_conn="" />
-					<debug_interface interface_id="EBlink" ip_address="localhost" ip_port="2331" path="C:\Program Files (x86)\EmBitz\1.11\share\EBlink" executable="eblink.exe" description="STM32G474xx.svd" dont_start_server="false" backoff_time="1000" options="0" reg_filter="0" active_family="STMicroelectronics" gdb_before_conn="" gdb_after_conn="">
+					<debug_interface interface_id="EBlink" ip_address="localhost" ip_port="2331" path="C:\Program Files (x86)\EmBitz\1.11\share\EBlink" executable="eblink.exe" description="STM32G474xx.svd" dont_start_server="false" backoff_time="3000" options="0" reg_filter="0" active_family="STMicroelectronics" gdb_before_conn="" gdb_after_conn="">
 						<family_options family_id="STMicroelectronics">
 							<option opt_id="ID_DEV_ADDR" opt_value="" />
 							<option opt_id="ID_DEV_SPEED" opt_value="4000" />
 							<option opt_id="ID_JTAG_SWD" opt_value="swd" />
 							<option opt_id="ID_RESET_TYPE" opt_value="System" />
 							<option opt_id="ID_DEVICE_SCRIPT_LIST" opt_value="stm32-auto" />
-							<option opt_id="ID_VERBOSE_LEVEL" opt_value="" />
+							<option opt_id="ID_VERBOSE_LEVEL" opt_value="7" />
 							<option opt_id="ID_VEC_TABLE" opt_value="1" />
 							<option opt_id="ID_VECTOR_START" opt_value="0x08000000" />
 							<option opt_id="ID_RAM_EXEC" opt_value="0" />

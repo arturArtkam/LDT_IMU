@@ -139,6 +139,15 @@ L3gd20h g_gyro;
 Mmc5983 g_mag;
 
 float S_x[130][5] = {0.0f, 0.0f};
+Mmc5983::Xyz_data g_res_m = {0,0,0};
+extern "C" void EXTI2_IRQHandler(void)
+{
+    LL_EXTI_ClearFlag_0_31(LL_EXTI_LINE_2);
+
+    g_res_m = g_mag.xyz();
+    g_mag.stat |= MEAS_M_DONE;
+    g_mag.write_reg(Mmc5983::addr::STATUS, g_mag.stat);
+}
 
 int main()
 {
@@ -151,6 +160,26 @@ int main()
     G_green_led::init();
     G_delay::init(clocks.PCLK2_Frequency);
     dbg_uart.init(&clocks);
+
+    /* Настройка прерываний со стороны mmc5983 */
+    G_mmc_int::init();
+    G_mmc_int::pulldown();
+
+    LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_SYSCFG);
+    LL_SYSCFG_SetEXTISource(LL_SYSCFG_EXTI_PORTB, LL_SYSCFG_EXTI_LINE2);
+
+    LL_EXTI_InitTypeDef exti;
+    LL_EXTI_StructInit(&exti);
+
+    exti.Line_0_31 = LL_EXTI_LINE_2;
+    exti.LineCommand = ENABLE;
+    exti.Mode = LL_EXTI_MODE_IT;
+    exti.Trigger = LL_EXTI_TRIGGER_RISING;
+
+    LL_EXTI_Init(&exti);
+    LL_EXTI_EnableIT_0_31(LL_EXTI_LINE_2);
+//    LL_EXTI_EnableFallingTrig_0_31(LL_EXTI_LINE_2);
+    LL_EXTI_EnableRisingTrig_0_31(LL_EXTI_LINE_2);
 
     app_log::warning("Wrapper System ini ", clocks.SYSCLK_Frequency, "Hz ", clocks.HCLK_Frequency, "Hz");
 
@@ -169,6 +198,7 @@ int main()
         app_log::warning("Axel OK");
     }
     g_mag.set_mode();
+    NVIC_EnableIRQ(EXTI2_IRQn);
     if (!g_mag.check_whoiam())
             app_log::warning("Mag error!");
     else
@@ -189,8 +219,8 @@ int main()
 
     while (1)
     {
-        Kx132::Xyz_data res = {};// = g_axel.read_xyz();
-        auto res_m = g_mag.read_xyz();
+//        Kx132::Xyz_data res = g_axel.read_xyz();
+        Mmc5983::Xyz_data res_m = g_res_m;//g_mag.read_xyz();
 //        app_log::warning("A_X ", res.a_x, "A_Y ", res.a_y, "A_Z ", res.a_z);
         app_log::warning("M_X ", res_m.m_x, "  M_Y ", res_m.m_y, "  M_Z ", res_m.m_z);
         DELAY_MS(500);

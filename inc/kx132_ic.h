@@ -161,8 +161,12 @@ public:
     auto read_xyz()
     {
         Xyz_data  out{};
+        uint8_t stat = 0;
 
-        while (!(read_8b(addr::INS2) & 0x10));
+        while (!(stat & 0x10))
+        {
+            stat = read_8b(addr::INS2);
+        }
 
         out.a_x = read_16b(addr::XOUT_L);
         out.a_y = read_16b(addr::YOUT_L);

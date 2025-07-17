@@ -160,11 +160,55 @@ public:
 
         write_reg(addr::CTRL_0, ctrl0);
 
-        while (!(stat & MEAS_M_DONE))
+//        while (G_mmc_int::read())
+//        {
+//            __NOP();
+//        }
+
+//        while (!(stat & MEAS_M_DONE))
+//        {
+//            stat = read_8b(addr::STATUS);
+//        }
+        while (!G_mmc_int::read())
         {
-            stat = read_8b(addr::STATUS);
+            __NOP();
         }
 
+        Cs_pin::lo();
+        Spi::exchange_8t(0x80 | addr::XOUT_L);
+        for (auto i = 0; i < 6; i++)
+        {
+            registerValues[i] = Spi::exchange_8t();
+        }
+
+        Cs_pin::hi();
+
+        stat |= MEAS_M_DONE;
+        write_reg(addr::STATUS, stat);
+
+        int16_t x, y, z;
+
+        x = registerValues[1]; // Xout[17:10]
+        x = (x << 8) | registerValues[0]; // Xout[9:2]
+//        x = (x << 2) | (registerValues[6] >> 6); // Xout[1:0]
+        y = registerValues[3]; // Yout[17:10]
+        y = (y << 8) | registerValues[2]; // Yout[9:2]
+//        y = (y << 2) | ((registerValues[6] >> 4) & 0x03); // Yout[1:0]
+        z = registerValues[5]; // Zout[17:10]
+        z = (z << 8) | registerValues[4]; // Zout[9:2]
+//        z = (z << 2) | ((registerValues[6] >> 2) & 0x03); // Zout[1:0]
+
+        out.m_x = x;
+        out.m_y = y;
+        out.m_z = z;
+
+        return out;
+    }
+
+    auto xyz()
+    {
+        Xyz_data  out{};
+        static uint8_t registerValues[7] = {0};
         Cs_pin::lo();
         Spi::exchange_8t(0x80 | addr::XOUT_L);
         for (auto i = 0; i < 6; i++)
@@ -197,21 +241,23 @@ public:
     {
         bool success;
 
-//        clearShadowBit(addr::CTRL_1, (YZ_INHIBIT | X_INHIBIT), true);
-//
-//        setShadowBit(addr::CTRL_2, EN_PRD_SET, true);
-        // CM_FREQ[2:0] = 111
-//        success = setShadowBit(addr::CTRL_2, (CM_FREQ_2 | CM_FREQ_1 | CM_FREQ_0), true);
         write_reg(addr::CTRL_1, SW_RST);
         while (!(read_8b(addr::STATUS) & OTP_READ_DONE))
         {
 
         }
 
-        ctrl0 |= (AUTO_SR_EN);// | INT_MEAS_DONE_EN);
 
+//        ctrl0 |= (INT_MEAS_DONE_EN);
+
+//        write_reg(addr::CTRL_0, ctrl0);
+        write_reg(addr::CTRL_1, (BW1 | BW0));
+        write_reg(addr::CTRL_2, (CM_FREQ_2 | CM_FREQ_1 | CM_FREQ_0));
+        write_reg(addr::CTRL_2, (EN_PRD_SET | CMM_EN | CM_FREQ_2 | CM_FREQ_1 | CM_FREQ_0));
+
+        ctrl0 |= TM_M;
+        ctrl0 |= (AUTO_SR_EN | INT_MEAS_DONE_EN);
         write_reg(addr::CTRL_0, ctrl0);
-//        write_reg(addr::CTRL_2, (CM_FREQ_2 | CM_FREQ_1 | CM_FREQ_0));
 
         return success;
     }
