@@ -38,6 +38,7 @@ typedef Pin<PORTB, 2, LL_GPIO_MODE_INPUT> G_mmc_int;
 
 typedef Delay_tim<TIM::TIM_16> G_delay;
 #define DELAY_MS(ms) G_delay::wait_ms(ms)
+#define DELAY_US(us) G_delay::wait_us(us)
 
 typedef Pin<PORTB, 3, LL_GPIO_MODE_OUTPUT, LL_GPIO_SPEED_FREQ_HIGH> Fram_cs_pin;
 typedef Hw_spi<SPI2_BASE, Af_pin<PORTB, 15>, Af_pin<PORTB, 14>, Af_pin<PORTB, 13>> Fram_spi;

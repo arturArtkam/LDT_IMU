@@ -143,10 +143,12 @@ Mmc5983::Xyz_data g_res_m = {0,0,0};
 extern "C" void EXTI2_IRQHandler(void)
 {
     LL_EXTI_ClearFlag_0_31(LL_EXTI_LINE_2);
-
-    g_res_m = g_mag.xyz();
-    g_mag.stat |= MEAS_M_DONE;
-    g_mag.write_reg(Mmc5983::addr::STATUS, g_mag.stat);
+    DELAY_US(500);
+//    g_res_m = g_mag.xyz();
+    g_mag.Measure_XYZ_WithAutoSR();
+//    g_mag.fetch_xyz(auto_sr_result);
+//    g_mag.stat |= MEAS_M_DONE;
+//    g_mag.write_reg(Mmc5983::addr::STATUS, g_mag.stat);
 }
 
 int main()
@@ -197,6 +199,8 @@ int main()
     {
         app_log::warning("Axel OK");
     }
+    g_mag.reset_chip();
+    DELAY_MS(10);
     g_mag.set_mode();
     NVIC_EnableIRQ(EXTI2_IRQn);
     if (!g_mag.check_whoiam())
@@ -220,10 +224,14 @@ int main()
     while (1)
     {
 //        Kx132::Xyz_data res = g_axel.read_xyz();
-        Mmc5983::Xyz_data res_m = g_res_m;//g_mag.read_xyz();
+        Mmc5983::Xyz_data res_m = {
+            ((int32_t)g_mag.auto_sr_result[0] - 0x20000) >> 2,
+            ((int32_t)g_mag.auto_sr_result[1] - 0x20000) >> 2,
+            ((int32_t)g_mag.auto_sr_result[2] - 0x20000) >> 2};// = g_res_m;//g_mag.read_xyz();
 //        app_log::warning("A_X ", res.a_x, "A_Y ", res.a_y, "A_Z ", res.a_z);
-        app_log::warning("M_X ", res_m.m_x, "  M_Y ", res_m.m_y, "  M_Z ", res_m.m_z);
-        DELAY_MS(500);
+//        app_log::warning("M_X ", res_m.m_x, "  M_Y ", res_m.m_y, "  M_Z ", res_m.m_z);
+        app_log::warning("M_X ", (int32_t)(g_mag.auto_sr_result[0] - 0x20000), "  M_Y ", (int32_t)(g_mag.auto_sr_result[1] - 0x20000), "  M_Z ", (int32_t)(g_mag.auto_sr_result[2] - 0x20000));
+        DELAY_MS(100);
 
 //        run_periodic_scale_stabilization();
     }

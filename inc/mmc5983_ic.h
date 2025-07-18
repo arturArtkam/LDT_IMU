@@ -40,12 +40,12 @@ class Mmc5983_ic
 public:
     typedef enum
     {
-        XOUT_L      = 0x00,
-        XOUT_H,
-        YOUT_L,
+        XOUT_H      = 0x00,
+        XOUT_L,
         YOUT_H,
-        ZOUT_L,
+        YOUT_L,
         ZOUT_H,
+        ZOUT_L,
         XYZ_OUT_2,
         T_OUT,
         STATUS,
@@ -65,6 +65,8 @@ public:
 
 public:
     Mmc5983_ic() : ctrl0(0),
+                   ctrl1(0),
+                   ctrl2(0),
                    stat(0)
     {
         Cs_pin::init();
@@ -148,7 +150,10 @@ public:
     }
 
     uint8_t ctrl0;
+    uint8_t ctrl1;
+    uint8_t ctrl2;
     uint8_t stat;
+    uint32_t auto_sr_result[3] = {0};
 
     auto read_xyz()
     {
@@ -205,59 +210,60 @@ public:
         return out;
     }
 
-    auto xyz()
+    /* ѕолучение результатов XYZ (3 необработанных 18-разр€дных значени€ без знака) */
+    inline void fetch_xyz(uint32_t (&result)[3])
     {
-        Xyz_data  out{};
-        static uint8_t registerValues[7] = {0};
+        uint8_t rawBytes[7];
+        /* 7 sequential field measurement bytes */
         Cs_pin::lo();
-        Spi::exchange_8t(0x80 | addr::XOUT_L);
-        for (auto i = 0; i < 6; i++)
+        Spi::exchange_8t(0x80 | addr::XOUT_H);
+        for (auto i = 0; i < 7; i++)
         {
-            registerValues[i] = Spi::exchange_8t();
+            rawBytes[i] = Spi::exchange_8t();
         }
 
         Cs_pin::hi();
+        result[0] =  ((uint32_t)rawBytes[0] << 10) |
+                     ((uint32_t)rawBytes[1] <<  2) |
+                    (((uint32_t)rawBytes[6] & 0xC0u) >> 6) ;
+        result[1] =  ((uint32_t)rawBytes[2] << 10) |
+                     ((uint32_t)rawBytes[3] <<  2) |
+                    (((uint32_t)rawBytes[6] & 0x30u) >> 4) ;
+        result[2] =  ((uint32_t)rawBytes[4] << 10) |
+                     ((uint32_t)rawBytes[5] <<  2) |
+                    (((uint32_t)rawBytes[6] & 0x0Cu) >> 2) ;
+    }
 
-        int16_t x, y, z;
+    inline void Measure_XYZ_WithAutoSR()
+    {
+//        ctrl0 |= AUTO_SR_EN;
+//        write_reg(addr::CTRL_0, ctrl0);
+        fetch_xyz(auto_sr_result);
+//        stat |= MEAS_M_DONE;
+        write_reg(addr::STATUS, MEAS_M_DONE);
+    }
 
-        x = registerValues[1]; // Xout[17:10]
-        x = (x << 8) | registerValues[0]; // Xout[9:2]
-//        x = (x << 2) | (registerValues[6] >> 6); // Xout[1:0]
-        y = registerValues[3]; // Yout[17:10]
-        y = (y << 8) | registerValues[2]; // Yout[9:2]
-//        y = (y << 2) | ((registerValues[6] >> 4) & 0x03); // Yout[1:0]
-        z = registerValues[5]; // Zout[17:10]
-        z = (z << 8) | registerValues[4]; // Zout[9:2]
-//        z = (z << 2) | ((registerValues[6] >> 2) & 0x03); // Zout[1:0]
-
-        out.m_x = x;
-        out.m_y = y;
-        out.m_z = z;
-
-        return out;
+    void reset_chip()
+    {
+        write_reg(addr::CTRL_1, SW_RST);
     }
 
     bool set_mode()
     {
         bool success;
 
-        write_reg(addr::CTRL_1, SW_RST);
-        while (!(read_8b(addr::STATUS) & OTP_READ_DONE))
-        {
-
-        }
-
-
-//        ctrl0 |= (INT_MEAS_DONE_EN);
-
-//        write_reg(addr::CTRL_0, ctrl0);
-        write_reg(addr::CTRL_1, (BW1 | BW0));
-        write_reg(addr::CTRL_2, (CM_FREQ_2 | CM_FREQ_1 | CM_FREQ_0));
-        write_reg(addr::CTRL_2, (EN_PRD_SET | CMM_EN | CM_FREQ_2 | CM_FREQ_1 | CM_FREQ_0));
-
-        ctrl0 |= TM_M;
         ctrl0 |= (AUTO_SR_EN | INT_MEAS_DONE_EN);
         write_reg(addr::CTRL_0, ctrl0);
+
+        ctrl2 |= (CM_FREQ_2 | CM_FREQ_1 | CM_FREQ_0);
+        write_reg(addr::CTRL_2, ctrl2);
+        ctrl1 |= (BW1 | BW0);
+        write_reg(addr::CTRL_1, ctrl1);
+        ctrl2 |= (EN_PRD_SET | CMM_EN);
+        write_reg(addr::CTRL_2, ctrl2);
+
+//        ctrl0 |= TM_M;
+
 
         return success;
     }
