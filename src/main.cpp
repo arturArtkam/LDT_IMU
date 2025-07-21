@@ -143,13 +143,30 @@ Mmc5983::Xyz_data g_res_m = {0,0,0};
 extern "C" void EXTI2_IRQHandler(void)
 {
     LL_EXTI_ClearFlag_0_31(LL_EXTI_LINE_2);
-    DELAY_US(500);
+//    DELAY_US(1000);
 //    g_res_m = g_mag.xyz();
     g_mag.Measure_XYZ_WithAutoSR();
 //    g_mag.fetch_xyz(auto_sr_result);
 //    g_mag.stat |= MEAS_M_DONE;
 //    g_mag.write_reg(Mmc5983::addr::STATUS, g_mag.stat);
 }
+
+int32_t to_signed_18bit(uint32_t raw) {
+    int32_t val = (int32_t)raw;
+    if (val & 0x20000) { // если установлен знак (бит 17)
+        val -= 0x40000;  // вычесть 2^18, получить отрицательное значение
+    }
+    return val;
+}
+
+struct Res
+{
+    int32_t X;
+    int32_t Y;
+    int32_t Z;
+};
+
+static Res res_m = {0,0,0};
 
 int main()
 {
@@ -176,7 +193,7 @@ int main()
     exti.Line_0_31 = LL_EXTI_LINE_2;
     exti.LineCommand = ENABLE;
     exti.Mode = LL_EXTI_MODE_IT;
-    exti.Trigger = LL_EXTI_TRIGGER_RISING;
+    exti.Trigger = LL_EXTI_TRIGGER_FALLING;
 
     LL_EXTI_Init(&exti);
     LL_EXTI_EnableIT_0_31(LL_EXTI_LINE_2);
@@ -190,7 +207,7 @@ int main()
         S_X(S_x[i], i);
     }
 
-    g_axel.spibus_conf(LL_SPI_POLARITY_HIGH, LL_SPI_PHASE_2EDGE, LL_SPI_BAUDRATEPRESCALER_DIV64);
+    g_axel.spibus_conf(LL_SPI_POLARITY_HIGH, LL_SPI_PHASE_2EDGE, LL_SPI_BAUDRATEPRESCALER_DIV128);
     if (!g_axel.pwr_up())
     {
         app_log::warning("Axel ini error!");
@@ -200,7 +217,7 @@ int main()
         app_log::warning("Axel OK");
     }
     g_mag.reset_chip();
-    DELAY_MS(10);
+    DELAY_MS(50);
     g_mag.set_mode();
     NVIC_EnableIRQ(EXTI2_IRQn);
     if (!g_mag.check_whoiam())
@@ -224,13 +241,17 @@ int main()
     while (1)
     {
 //        Kx132::Xyz_data res = g_axel.read_xyz();
-        Mmc5983::Xyz_data res_m = {
-            ((int32_t)g_mag.auto_sr_result[0] - 0x20000) >> 2,
-            ((int32_t)g_mag.auto_sr_result[1] - 0x20000) >> 2,
-            ((int32_t)g_mag.auto_sr_result[2] - 0x20000) >> 2};// = g_res_m;//g_mag.read_xyz();
+        res_m = {
+            to_signed_18bit(g_mag.auto_sr_result[0]),
+            to_signed_18bit(g_mag.auto_sr_result[1]),
+            to_signed_18bit(g_mag.auto_sr_result[2])};// = g_res_m;//g_mag.read_xyz();
+//        g_mag.Measure_XYZ_Field_WithResetSet();
 //        app_log::warning("A_X ", res.a_x, "A_Y ", res.a_y, "A_Z ", res.a_z);
 //        app_log::warning("M_X ", res_m.m_x, "  M_Y ", res_m.m_y, "  M_Z ", res_m.m_z);
-        app_log::warning("M_X ", (int32_t)(g_mag.auto_sr_result[0] - 0x20000), "  M_Y ", (int32_t)(g_mag.auto_sr_result[1] - 0x20000), "  M_Z ", (int32_t)(g_mag.auto_sr_result[2] - 0x20000));
+//        app_log::warning("M_X ", (int32_t)g_mag.auto_sr_result[0] - 0x20000, "  M_Y ", (int32_t)g_mag.auto_sr_result[1] - 0x20000, "  M_Z ", (int32_t)g_mag.auto_sr_result[2] - 0x20000);
+        app_log::warning("M_X ", (int32_t)g_mag.auto_sr_result[0], "  M_Y ", (int32_t)g_mag.auto_sr_result[1], "  M_Z ", (int32_t)g_mag.auto_sr_result[2]);
+//        g_mag.SET();
+//        g_mag.RESET();
         DELAY_MS(100);
 
 //        run_periodic_scale_stabilization();

@@ -20,9 +20,6 @@ typedef Pin<PORTB, 2, LL_GPIO_MODE_INPUT> G_mmc_int;
 
 #include "uart_ll_g4xx.h"
 #include "delay_tim.h"
-#include "kx132_ic.h"
-#include "l3gd20h_ic.h"
-#include "mmc5983_ic.h"
 #include "mb85_ic.h"
 
 #define bitRead(value, bit) (((value) >> (bit)) & 0x01)
@@ -43,6 +40,10 @@ typedef Delay_tim<TIM::TIM_16> G_delay;
 typedef Pin<PORTB, 3, LL_GPIO_MODE_OUTPUT, LL_GPIO_SPEED_FREQ_HIGH> Fram_cs_pin;
 typedef Hw_spi<SPI2_BASE, Af_pin<PORTB, 15>, Af_pin<PORTB, 14>, Af_pin<PORTB, 13>> Fram_spi;
 typedef ic_mb85<MB85RS256_SIZE, Fram_spi, Fram_cs_pin> G_fram;
+
+#include "kx132_ic.h"
+#include "l3gd20h_ic.h"
+#include "mmc5983_ic.h"
 
 typedef Hw_spi<SPI1_BASE, Af_pin<PORTA, 6, LL_GPIO_AF_5>, Af_pin<PORTA, 7, LL_GPIO_AF_5>, Af_pin<PORTA, 5, LL_GPIO_AF_5>> Shared_spi;
 typedef Kx132_ic<Shared_spi, Pin<PORTB, 0, LL_GPIO_MODE_OUTPUT>> Kx132;
