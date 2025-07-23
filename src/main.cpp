@@ -143,12 +143,8 @@ Mmc5983::Xyz_data g_res_m = {0,0,0};
 extern "C" void EXTI2_IRQHandler(void)
 {
     LL_EXTI_ClearFlag_0_31(LL_EXTI_LINE_2);
-//    DELAY_US(1000);
-//    g_res_m = g_mag.xyz();
     g_mag.Measure_XYZ_WithAutoSR();
-//    g_mag.fetch_xyz(auto_sr_result);
-//    g_mag.stat |= MEAS_M_DONE;
-//    g_mag.write_reg(Mmc5983::addr::STATUS, g_mag.stat);
+
 }
 
 int32_t to_signed_18bit(uint32_t raw) {
@@ -207,7 +203,7 @@ int main()
         S_X(S_x[i], i);
     }
 
-    g_axel.spibus_conf(LL_SPI_POLARITY_HIGH, LL_SPI_PHASE_2EDGE, LL_SPI_BAUDRATEPRESCALER_DIV128);
+    g_axel.spibus_conf(LL_SPI_POLARITY_HIGH, LL_SPI_PHASE_2EDGE, LL_SPI_BAUDRATEPRESCALER_DIV64);
     if (!g_axel.pwr_up())
     {
         app_log::warning("Axel ini error!");
@@ -218,7 +214,8 @@ int main()
     }
     g_mag.reset_chip();
     DELAY_MS(50);
-    g_mag.set_mode();
+//    g_mag.set_mode();
+    g_mag.set_mode_1();
     NVIC_EnableIRQ(EXTI2_IRQn);
     if (!g_mag.check_whoiam())
             app_log::warning("Mag error!");
@@ -245,14 +242,19 @@ int main()
             to_signed_18bit(g_mag.auto_sr_result[0]),
             to_signed_18bit(g_mag.auto_sr_result[1]),
             to_signed_18bit(g_mag.auto_sr_result[2])};// = g_res_m;//g_mag.read_xyz();
+        G_red_led::hi();
+        g_mag.Measure_XYZ_WithAutoSR();
 //        g_mag.Measure_XYZ_Field_WithResetSet();
+        G_red_led::lo();
 //        app_log::warning("A_X ", res.a_x, "A_Y ", res.a_y, "A_Z ", res.a_z);
 //        app_log::warning("M_X ", res_m.m_x, "  M_Y ", res_m.m_y, "  M_Z ", res_m.m_z);
 //        app_log::warning("M_X ", (int32_t)g_mag.auto_sr_result[0] - 0x20000, "  M_Y ", (int32_t)g_mag.auto_sr_result[1] - 0x20000, "  M_Z ", (int32_t)g_mag.auto_sr_result[2] - 0x20000);
-        app_log::warning("M_X ", (int32_t)g_mag.auto_sr_result[0], "  M_Y ", (int32_t)g_mag.auto_sr_result[1], "  M_Z ", (int32_t)g_mag.auto_sr_result[2]);
+//        app_log::warning("M_X ", (int32_t)g_mag.field[0], "  M_Y ", (int32_t)g_mag.field[1], "  M_Z ", (int32_t)g_mag.field[2]);
+//        print(dbg_uart, "(", (int32_t)g_mag.field[0], ",", (int32_t)g_mag.field[1], ",", (int32_t)g_mag.field[2], "),");
+        print(dbg_uart, (int32_t)g_mag.field[0], ", ", (int32_t)g_mag.field[1], ", ", (int32_t)g_mag.field[2], "\n");
 //        g_mag.SET();
 //        g_mag.RESET();
-        DELAY_MS(100);
+        DELAY_MS(25);
 
 //        run_periodic_scale_stabilization();
     }

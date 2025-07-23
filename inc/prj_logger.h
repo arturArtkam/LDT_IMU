@@ -31,6 +31,15 @@ inline constexpr auto log(const Args&... args) {
     return print_log<lvl>(g_logger, args...);
 }
 
+//template <class... Args>
+//inline constexpr auto print_f(const Args&... args) {
+//    // if (!s_global_logger_ptr) return; // Проверка, если используем s_global_logger_ptr
+//    // return print_log<lvl>(*s_global_logger_ptr, args...);
+//    // Если g_logger - это глобальная переменная, доступная здесь:
+//    return print(g_logger, args...);
+//}
+
+
 // Опционально, короткие версии
 template <class... Args> inline constexpr auto trace(const Args&... args) { return log<LOG_TRACE>(args...); }
 template <class... Args> inline constexpr auto debug(const Args&... args) { return log<LOG_DEBUG>(args...); }

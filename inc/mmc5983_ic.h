@@ -259,91 +259,96 @@ public:
 //        }
         return usec;
     };
+    /*
+        ‘ункци€ работает существенно быстрее чем Measure_XYZ_Field_WithResetSet, но большие смещени€ по ос€м,
+        такое ощущение, что SET/RESET не работает (или, работает неверно)
+        Ќастраивал так:
+        Control1 - биты BW1 и BW0
+        Control2 - биты EN_PRD_SET, CM_FREQ_2, CM_FREQ_1, CMM_EN
 
+    */
     inline void Measure_XYZ_WithAutoSR()
     {
-        fetch_xyz(auto_sr_result);
-        write_reg(addr::STATUS, MEAS_M_DONE);
-    }
-
-    // Is measurement complete?
-    inline bool MeasurementIsComplete() {
-        uint8_t status;
-//        get_reg(Register::Status,status);
-        status = read_8b(addr::STATUS);
-        bool complete = (status & (uint8_t)MEAS_M_DONE) != 0;
-        return complete;
-    }
-
-    inline void MeasureOneTime(uint32_t (&result)[3])
-    {
-        // Initiate Magnetic Measurement
-//        WriteControlAction(ControlRegister::Control_0, (uint8_t)Control_0_Mask::Action_TM_M);
-        ctrl0 |= TM_M;
-        write_reg(addr::CTRL_0, ctrl0);
-        ctrl0 &= ~TM_M;
-        // Wait for measurement complete
-//        int usec = uSecPerMeasurement(); // 8msec for 100Hz bandwidth, rarely measurement not complete !
-        int tries=0;
-        for (; tries < 5; tries++)
+        AUTO_SR();
+        DELAY_US(500);
+        measure_one_time(auto_sr_result);
+        for (int chIdx = 0; chIdx < 3; chIdx++)
         {
-            DELAY_US(500);
-            if (MeasurementIsComplete()) break; // measurement finished =>
-//            usec = 1000; // wait another millisecond and try again...
+            offset[chIdx] = 0x20000;
+            field [chIdx] = (int32_t)auto_sr_result[chIdx] - 0x20000;
         }
-//        assert(MeasurementIsComplete());
+    }
+
+    inline bool measurement_is_complete()
+    {
+        uint8_t status;
+        status = read_8b(addr::STATUS);
+        return (status & (uint8_t)MEAS_M_DONE) == (uint8_t)MEAS_M_DONE;
+    }
+
+    inline void measure_one_time(uint32_t (&result)[3])
+    {
+        while (!measurement_is_complete());
 
         fetch_xyz(result);
     }
 
-    /// RESET or SET generate a 500ns pulse to magnetize ANR film,
-    /// after which code must wait 500uSec before making a reading.
-    /// 500uSec delay from MEMSIC tech support and sample code (not in datasheet).
     /*
         RESET или SET генерирует импульс продолжительностью 500 нс дл€ намагничивани€ пленки ANR,
-        после чего код должен подождать 500 секунд, прежде чем выполнить считывание.
+        после чего код должен подождать 500 микросекунд, прежде чем выполнить считывание.
     */
-    static const uint32_t RequiredWaitAfterMagnetizePulse_uSec = 500; // per MEMSIC
-    /// Perform SET including required wait.
+    /// Perform SET.
     inline void SET()
     {
-//        WriteControlAction(ControlRegister::Control_0, (uint8_t)Control_0_Mask::Action_SET);
-        ctrl0 |= SET_OPERATION;
+        ctrl0 |= (SET_OPERATION | TM_M);
         write_reg(addr::CTRL_0, ctrl0);
-        DELAY_US(500);
         ctrl0 &= ~SET_OPERATION;
+        ctrl0 &= ~TM_M;
     }
-    /// Perform RESET including required wait.
+    /// Perform RESET.
     inline void RESET()
     {
-//        WriteControlAction(ControlRegister::Control_0, (uint8_t)Control_0_Mask::Action_REVERSE_SET);
-        ctrl0 |= RESET_OPERATION;
+        ctrl0 |= (RESET_OPERATION | TM_M);
         write_reg(addr::CTRL_0, ctrl0);
-        DELAY_US(500);
         ctrl0 &= ~RESET_OPERATION;
+        ctrl0 &= ~TM_M;
     }
 
+    inline void AUTO_SR()
+    {
+        ctrl0 |= (AUTO_SR_EN);
+        write_reg(addr::CTRL_0, ctrl0);
+        ctrl0 &= ~AUTO_SR_EN;
+//        ctrl0 &= ~TM_M;
+    }
+
+    /*
+    ‘ункци€ работает, выдает корректные результаты (все оси относительно нол€ более-менее симметричны),
+    на работает медленно (около 10мс). »з настроек, требуетс€ выставить в регистре Control1 биты BW.
+    */
     inline int8_t Measure_XYZ_Field_WithResetSet()
     {
-        uint32_t resultAfter_SET[3] = {0}, resultAfter_RESET[3] = {0};
-        SET();   // includes required post-pulse delay (nominal 500us, implemented 1msec), now reading ::= +H + Offset
-        MeasureOneTime(resultAfter_SET);
-        RESET(); // includes required post-pulse delay (nominal 500us, implemented 1msec), now reading ::= -H + Offset
-        MeasureOneTime(resultAfter_RESET);
+        SET();   // now reading ::= +H + Offset
+        DELAY_US(500);
+        measure_one_time(resultAfter_SET);
+        RESET(); // now reading ::= -H + Offset
+        DELAY_US(500);
+        measure_one_time(resultAfter_RESET);
         // Compute offset (zero field value) and signed result for each sensor
         for (int chIdx = 0; chIdx < 3; chIdx++)
         {
-            if (chIdx > 0)
-            {
+//            if (chIdx > 0)
+//            {
                 // Work-around MMC5983MA bug: With SPI interface, RESET only works on X channel
                 offset[chIdx] = 0x20000; // With this bug, best we can do is use nominal 0 value...
                 field [chIdx] = (int32_t)resultAfter_SET[chIdx] - 0x20000;
-            }
-            else
-            {
-                offset[chIdx] = (resultAfter_SET[chIdx] + resultAfter_RESET[chIdx]) / 2;
-                field[chIdx] = ((int32_t)resultAfter_SET[chIdx] - (int32_t)resultAfter_RESET[chIdx]) / 2;
-            }
+///                field[chIdx] = ((int32_t)resultAfter_SET[chIdx] - (int32_t)resultAfter_RESET[chIdx]) / 2;
+//            }
+//            else
+//            {
+//                offset[chIdx] = (resultAfter_SET[chIdx] + resultAfter_RESET[chIdx]) / 2;
+
+//            }
         }
 
         return 0;
@@ -369,23 +374,27 @@ public:
     {
         ctrl0 |= (AUTO_SR_EN | INT_MEAS_DONE_EN);
         write_reg(addr::CTRL_0, ctrl0);
-
-//        ctrl2 |= (CM_FREQ_2 | CM_FREQ_1 | CM_FREQ_0); //1000Hz
+        DELAY_MS(10);
         ctrl2 |= (EN_PRD_SET | CM_FREQ_1 | CM_FREQ_0 | CMM_EN); //100Hz
         write_reg(addr::CTRL_2, ctrl2);
-//        ctrl1 |= (BW1 | BW0);
-
+////        ctrl1 |= (BW1 | BW0);
+        DELAY_MS(10);
         ctrl1 |= (BW1);
         write_reg(addr::CTRL_1, ctrl1);
-
+        DELAY_MS(10);
         return true;
     }
 
     bool set_mode_1()
     {
-        ctrl1 |= (BW1);
+        ctrl0 |= (AUTO_SR_EN);
+        write_reg(addr::CTRL_0, ctrl0);
+//        DELAY_MS(10);
+        ctrl1 |= (BW1 | BW0);
         write_reg(addr::CTRL_1, ctrl1);
-
+        DELAY_MS(10);
+        ctrl2 |= (EN_PRD_SET | CM_FREQ_2 | CM_FREQ_1 | CMM_EN); //100Hz
+        write_reg(addr::CTRL_2, ctrl2);
         return true;
     }
 };
