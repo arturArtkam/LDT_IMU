@@ -184,7 +184,7 @@ extern "C" void EXTI0_IRQHandler()
 
         //обновляем i ячейку массива окна скользящего среднего
         G_Data[i_filter] = {(float)axel.a_x, (float)axel.a_y, (float)axel.a_z}; //G_raw;
-        M_Data[i_filter] = {(float)mag.m_x, (float)mag.m_y, (float)mag.m_z}; //M_raw;
+        M_Data[i_filter] = {(float)mag.X, (float)mag.Y, (float)mag.Z}; //M_raw;
         W_Data[i_filter] = {(float)gyro.w_x, (float)gyro.w_y, (float)gyro.w_z}; //W_raw;
 
         // заносим сырые  G M

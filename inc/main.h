@@ -19,7 +19,7 @@ typedef Pin<PORTB, 11, LL_GPIO_MODE_OUTPUT, LL_GPIO_SPEED_FREQ_MEDIUM> G_pin_int
 typedef Pin<PORTB, 2, LL_GPIO_MODE_INPUT> G_mmc_int;
 
 #include "uart_ll_g4xx.h"
-#include "delay_tim.h"
+//#include "delay_tim.h"
 #include "mb85_ic.h"
 
 #define bitRead(value, bit) (((value) >> (bit)) & 0x01)
@@ -33,9 +33,9 @@ typedef Pin<PORTB, 2, LL_GPIO_MODE_INPUT> G_mmc_int;
 //typedef Pin<PORTB, 3, LL_GPIO_MODE_OUTPUT, LL_GPIO_SPEED_FREQ_MEDIUM, LL_GPIO_OUTPUT_PUSHPULL, LL_GPIO_PULL_NO> G_green_led;
 //typedef Pin<PORTB, 11, LL_GPIO_MODE_INPUT, LL_GPIO_SPEED_FREQ_MEDIUM> G_pin_int;
 
-typedef Delay_tim<TIM::TIM_16> G_delay;
-#define DELAY_MS(ms) G_delay::wait_ms(ms)
-#define DELAY_US(us) G_delay::wait_us(us)
+//typedef Delay_tim<TIM::TIM_3> G_delay;
+//#define DELAY_MS(ms) G_delay::wait_ms(ms)
+//#define DELAY_US(us) G_delay::wait_us(us)
 
 typedef Pin<PORTB, 3, LL_GPIO_MODE_OUTPUT, LL_GPIO_SPEED_FREQ_HIGH> Fram_cs_pin;
 typedef Hw_spi<SPI2_BASE, Af_pin<PORTB, 15>, Af_pin<PORTB, 14>, Af_pin<PORTB, 13>> Fram_spi;
@@ -43,16 +43,27 @@ typedef ic_mb85<MB85RS256_SIZE, Fram_spi, Fram_cs_pin> G_fram;
 
 #include "kx132_ic.h"
 #include "l3gd20h_ic.h"
-#include "mmc5983_ic.h"
+#include "ads131_ic.h"
+//#include "mmc5983_ic.h"
 
 typedef Hw_spi<SPI1_BASE, Af_pin<PORTA, 6, LL_GPIO_AF_5>, Af_pin<PORTA, 7, LL_GPIO_AF_5>, Af_pin<PORTA, 5, LL_GPIO_AF_5>> Shared_spi;
-typedef Kx132_ic<Shared_spi, Pin<PORTB, 0, LL_GPIO_MODE_OUTPUT>> Kx132;
+typedef Kx132_ic<Shared_spi, Pin<PORTA, 3, LL_GPIO_MODE_OUTPUT>> Kx132;
 typedef L3gd20h_ic<Shared_spi, Pin<PORTA, 4, LL_GPIO_MODE_OUTPUT>> L3gd20h;
-typedef Mmc5983_ic<Shared_spi, Pin<PORTB, 1, LL_GPIO_MODE_OUTPUT>> Mmc5983;
+//typedef Mmc5983_ic<Shared_spi, Pin<PORTB, 1, LL_GPIO_MODE_OUTPUT>> Mmc5983;
+// Пины для АЦП
+// CS - Output
+using AdcCsPin = Pin<PORTB, 0, LL_GPIO_MODE_OUTPUT, LL_GPIO_SPEED_FREQ_HIGH, LL_GPIO_OUTPUT_PUSHPULL>;
 
-extern Kx132 g_axel;
-extern L3gd20h g_gyro;
-extern Mmc5983 g_mag;
+// RDY - Input, Pull-up (линия /DRDY обычно требует подтяжки)
+using AdcRdyPin = Pin<PORTA, 4, LL_GPIO_MODE_INPUT, LL_GPIO_SPEED_FREQ_LOW, LL_GPIO_OUTPUT_PUSHPULL, LL_GPIO_PULL_UP>;
+
+// SYNC/RESET - Output
+using AdcSyncPin = Pin<PORTB, 1, LL_GPIO_MODE_OUTPUT, LL_GPIO_SPEED_FREQ_HIGH, LL_GPIO_OUTPUT_PUSHPULL>;
+
+// Также не забудьте настроить пины для самого SPI1 (SCK, MISO, MOSI)
+// SCK -> PA5, MISO -> PA6, MOSI -> PA7
+// Эти пины должны быть настроены в режиме Alternate Function AF5
+using Ads = ads131_t<AdcCsPin, AdcRdyPin, AdcSyncPin>;
 
 struct Vec
 {
@@ -105,6 +116,18 @@ enum Fram_markup
     W_OFFSET_ADDR = G_OFFSET_ADDR + 2 * sizeof(Cal),
     SETTINGS_ADDR = G_OFFSET_ADDR + 3 * sizeof(Cal),
 };
+
+class Mag
+{
+public:
+    Vec read_xyz()
+    {
+    }
+};
+
+extern Kx132 g_axel;
+extern L3gd20h g_gyro;
+extern Mag g_mag;
 
 Vec vctr_summ(Vec a, Vec b);
 Vec vctr_diff(Vec a, Vec b);
