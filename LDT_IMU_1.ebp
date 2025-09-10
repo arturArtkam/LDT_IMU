@@ -136,6 +136,7 @@
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="cxxlog\textstream.h" />
+		<Unit filename="inc\ads131_ic.h" />
 		<Unit filename="inc\delay_tim.h" />
 		<Unit filename="inc\kx132_ic.h" />
 		<Unit filename="inc\l3gd20h_ic.h" />
@@ -216,12 +217,6 @@
 		<Extensions>
 			<code_completion />
 			<debugger>
-				<target_debugging_settings target="Debug" active_interface="Generic">
-					<debug_interface interface_id="" ip_address="" ip_port="" path="" executable="" description="STM32G474xx.svd" dont_start_server="false" backoff_time="" options="2" reg_filter="0" active_family="" gdb_before_conn="" gdb_after_conn="" />
-					<debug_interface interface_id="Generic" ip_address="" ip_port="" path="" executable="" description="STM32G474xx.svd" dont_start_server="false" backoff_time="" options="8" reg_filter="0" active_family="All" gdb_before_conn="" gdb_after_conn="">
-						<family_options family_id="All" />
-					</debug_interface>
-				</target_debugging_settings>
 				<target_debugging_settings target="Release" active_interface="EBlink">
 					<debug_interface interface_id="" ip_address="" ip_port="" path="" executable="" description="STM32G474xx.svd" dont_start_server="false" backoff_time="" options="2" reg_filter="0" active_family="" gdb_before_conn="" gdb_after_conn="" />
 					<debug_interface interface_id="EBlink" ip_address="localhost" ip_port="2331" path="C:\Program Files (x86)\EmBitz\1.11\share\EBlink" executable="eblink.exe" description="STM32G474xx.svd" dont_start_server="false" backoff_time="3000" options="0" reg_filter="0" active_family="STMicroelectronics" gdb_before_conn="" gdb_after_conn="">
@@ -261,6 +256,12 @@
 							<option opt_id="ID_DEV_ADDR" opt_value="" />
 							<option opt_id="ID_VERBOSE_LEVEL" opt_value="4" />
 						</family_options>
+					</debug_interface>
+				</target_debugging_settings>
+				<target_debugging_settings target="Debug" active_interface="Generic">
+					<debug_interface interface_id="" ip_address="" ip_port="" path="" executable="" description="STM32G474xx.svd" dont_start_server="false" backoff_time="" options="2" reg_filter="0" active_family="" gdb_before_conn="" gdb_after_conn="" />
+					<debug_interface interface_id="Generic" ip_address="" ip_port="" path="" executable="" description="STM32G474xx.svd" dont_start_server="false" backoff_time="" options="8" reg_filter="0" active_family="All" gdb_before_conn="" gdb_after_conn="">
+						<family_options family_id="All" />
 					</debug_interface>
 				</target_debugging_settings>
 			</debugger>

@@ -136,14 +136,14 @@ Uart_dbg<UART1, Af_pin<PORTA, 9, LL_GPIO_AF_7>> dbg_uart;
 ProjectLogger g_logger(dbg_uart);
 Kx132 g_axel;
 L3gd20h g_gyro;
-Mmc5983 g_mag;
+Mag g_mag;
+Ads ads131;
 
 float S_x[130][5] = {0.0f, 0.0f};
-Mmc5983::Xyz_data g_res_m = {0,0,0};
 extern "C" void EXTI2_IRQHandler(void)
 {
     LL_EXTI_ClearFlag_0_31(LL_EXTI_LINE_2);
-    g_mag.Measure_XYZ_WithAutoSR();
+//    g_mag.Measure_XYZ_WithAutoSR();
 
 }
 
@@ -164,6 +164,95 @@ struct Res
 
 static Res res_m = {0,0,0};
 
+static bool Powered()
+{
+	return ads131.IsOn;
+}
+static void WakeUp(void)
+{
+	ads131.WakeUp();
+}
+static void StandBy(bool fullStop)
+{
+	// выполняется вконце фрейма (по даташиту)
+	// (после разрешения прерываний sei() в обработчике ads131.DataReadyHandler();)
+	ads131.AddSyncFrameStandBy();
+}
+
+static void AddSyncFrameSetupADC(void)
+{
+	union rwreg_u rw;
+	rw.wr.preambula = PRE_WREG;
+	rw.wr.adr = 3;
+	rw.wr.cnt = 4;
+	Uart.buf[0] =rw.bt[1]; //h
+	Uart.buf[1] =rw.bt[0]; //l
+
+	union clockreg_u clk;
+	clk.clk.ch0_en = 1;
+	clk.clk.ch1_en = 1;
+	clk.clk.ch2_en = 1;
+	clk.clk.ch3_en = 1;
+	clk.clk.ch4_en = 1;
+	clk.clk.ch5_en = 1;
+	clk.clk.ch6_en = 1;
+	clk.clk.xtal_dis = 1;
+	clk.clk.pwr = 2; // hi power hi resolution
+	clk.clk.osr = 7; // max filter setup
+	Uart.buf[3] =clk.bt[1]; //h
+	Uart.buf[4] =clk.bt[0]; //l
+
+	union gain1reg_u g1;
+//	g1.gain.pgagain1 = 1;
+//	g1.gain.pgagain2 = 1;
+//	g1.gain.pgagain3 = 1;
+	Uart.buf[6] =g1.bt[1]; //h no gain
+	Uart.buf[7] =g1.bt[0]; //l no gain
+
+	union gain2reg_u g2;
+//	g2.gain.pgagain4 = 1;
+//	g2.gain.pgagain6 = 1;
+//	g2.gain.pgagain5 = 1;
+	Uart.buf[9] =g2.bt[1]; //h no gain
+	Uart.buf[10] =g2.bt[0]; //l no gain
+
+	union cfgreg_u cfg;
+	cfg.cfg.gc_en = 1; // global chop
+	cfg.cfg.gc_delay = 0b11; //default delay
+	Uart.buf[12] =cfg.bt[1]; //h
+	Uart.buf[13] =cfg.bt[0]; //l
+
+	ads131.AddSyncFrameUserCmd(1,  0);
+}
+
+#define READ_REGS_START 0
+#define READ_REGS_CNT 7
+static void cbReadADC(uint8_t cmd)
+{
+	ads131.Transaction(READ_REGS_CNT+1+1);
+
+	uint8_t* inptr = &Com.buf[DATA_POS];
+	uint8_t* dptr = Uart.SpiData();
+	for (uint8_t i =0; i< READ_REGS_CNT; i++)
+	{
+		dptr +=3;
+		*inptr++ = dptr[1];
+		*inptr++ = dptr[0];
+	}
+	Com.CRCSend(HEADER_LEN+READ_REGS_CNT*2);
+}
+static void AddSyncFrameReadRegsADC(void)
+{
+	union rwreg_u rw;
+	rw.wr.preambula = PRE_RREG;
+	rw.wr.adr = READ_REGS_START;
+	rw.wr.cnt = READ_REGS_CNT;
+	Uart.buf[0] =rw.bt[1]; //h
+	Uart.buf[1] =rw.bt[0]; //l
+
+	ads131.AddSyncFrameUserCmd(2,  cbReadADC);
+}
+
 int main()
 {
     SystemClock_Config_LL();
@@ -173,7 +262,7 @@ int main()
 
     G_red_led::init();
     G_green_led::init();
-    G_delay::init(clocks.PCLK2_Frequency);
+//    G_delay::init(clocks.PCLK2_Frequency);
     dbg_uart.init(&clocks);
 
     /* Настройка прерываний со стороны mmc5983 */
@@ -212,15 +301,16 @@ int main()
     {
         app_log::warning("Axel OK");
     }
-    g_mag.reset_chip();
-    DELAY_MS(50);
+
+//    DELAY_MS(50);
 //    g_mag.set_mode();
-    g_mag.set_mode_1();
+//    g_mag.set_mode_1();
+    ads131.Init();
     NVIC_EnableIRQ(EXTI2_IRQn);
-    if (!g_mag.check_whoiam())
-            app_log::warning("Mag error!");
-    else
-        app_log::warning("MAg OK");
+//    if (!g_mag.check_whoiam())
+//            app_log::warning("Mag error!");
+//    else
+//        app_log::warning("MAg OK");
 
     g_axel.norm_mode_2g_50hz();
     if (!g_gyro.check_whoiam())
@@ -237,25 +327,25 @@ int main()
 
     while (1)
     {
-//        Kx132::Xyz_data res = g_axel.read_xyz();
-        res_m = {
-            to_signed_18bit(g_mag.auto_sr_result[0]),
-            to_signed_18bit(g_mag.auto_sr_result[1]),
-            to_signed_18bit(g_mag.auto_sr_result[2])};// = g_res_m;//g_mag.read_xyz();
-        G_red_led::hi();
-        g_mag.Measure_XYZ_WithAutoSR();
-//        g_mag.Measure_XYZ_Field_WithResetSet();
-        G_red_led::lo();
-//        app_log::warning("A_X ", res.a_x, "A_Y ", res.a_y, "A_Z ", res.a_z);
-//        app_log::warning("M_X ", res_m.m_x, "  M_Y ", res_m.m_y, "  M_Z ", res_m.m_z);
-//        app_log::warning("M_X ", (int32_t)g_mag.auto_sr_result[0] - 0x20000, "  M_Y ", (int32_t)g_mag.auto_sr_result[1] - 0x20000, "  M_Z ", (int32_t)g_mag.auto_sr_result[2] - 0x20000);
-//        app_log::warning("M_X ", (int32_t)g_mag.field[0], "  M_Y ", (int32_t)g_mag.field[1], "  M_Z ", (int32_t)g_mag.field[2]);
-//        print(dbg_uart, "(", (int32_t)g_mag.field[0], ",", (int32_t)g_mag.field[1], ",", (int32_t)g_mag.field[2], "),");
-        print(dbg_uart, (int32_t)g_mag.field[0], ", ", (int32_t)g_mag.field[1], ", ", (int32_t)g_mag.field[2], "\n");
-//        g_mag.SET();
-//        g_mag.RESET();
-        DELAY_MS(25);
-
-//        run_periodic_scale_stabilization();
+////        Kx132::Xyz_data res = g_axel.read_xyz();
+//        res_m = {
+//            to_signed_18bit(g_mag.auto_sr_result[0]),
+//            to_signed_18bit(g_mag.auto_sr_result[1]),
+//            to_signed_18bit(g_mag.auto_sr_result[2])};// = g_res_m;//g_mag.read_xyz();
+//        G_red_led::hi();
+//        g_mag.Measure_XYZ_WithAutoSR();
+////        g_mag.Measure_XYZ_Field_WithResetSet();
+//        G_red_led::lo();
+////        app_log::warning("A_X ", res.a_x, "A_Y ", res.a_y, "A_Z ", res.a_z);
+////        app_log::warning("M_X ", res_m.m_x, "  M_Y ", res_m.m_y, "  M_Z ", res_m.m_z);
+////        app_log::warning("M_X ", (int32_t)g_mag.auto_sr_result[0] - 0x20000, "  M_Y ", (int32_t)g_mag.auto_sr_result[1] - 0x20000, "  M_Z ", (int32_t)g_mag.auto_sr_result[2] - 0x20000);
+////        app_log::warning("M_X ", (int32_t)g_mag.field[0], "  M_Y ", (int32_t)g_mag.field[1], "  M_Z ", (int32_t)g_mag.field[2]);
+////        print(dbg_uart, "(", (int32_t)g_mag.field[0], ",", (int32_t)g_mag.field[1], ",", (int32_t)g_mag.field[2], "),");
+//        print(dbg_uart, (int32_t)g_mag.field[0], ", ", (int32_t)g_mag.field[1], ", ", (int32_t)g_mag.field[2], "\n");
+////        g_mag.SET();
+////        g_mag.RESET();
+//        DELAY_MS(25);
+//
+////        run_periodic_scale_stabilization();
     }
 }
