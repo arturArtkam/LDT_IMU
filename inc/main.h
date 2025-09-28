@@ -122,6 +122,8 @@ class Mag
 public:
     Vec read_xyz()
     {
+        Vec res = {0, 0, 0};
+        return res;
     }
 };
 

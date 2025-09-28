@@ -379,7 +379,7 @@ private:
     }
 
     // Внутренний обработчик прерывания
-    void internal_DataReady_Handler()
+    void internal_dataready_handler()
     {
         dataReadyFlag = true;
     }
@@ -424,7 +424,7 @@ public:
     }
 
     // Обработчик прерывания должен быть вызван из C-функции ISR
-    static void ISR_Handler()
+    static void isr_handler()
     {
         if (LL_EXTI_IsActiveFlag_0_31(PinRDY::pin_mask()) != RESET)
         {
@@ -435,7 +435,7 @@ public:
         }
     }
 
-    void Reset()
+    void reset()
     {
         SNC_on();
         delay_ms(1); // Короткая задержка
@@ -443,7 +443,7 @@ public:
         IsOn = 1;
     }
 
-    void Init()
+    void init()
     {
         // Инициализация пина RDY
         PinRDY::init();
@@ -452,14 +452,14 @@ public:
         spi_init();
         exti_init();
 
-        Reset();
+        reset();
 
         // Ждем, пока линия /DRDY не станет низкой в первый раз
         uint32_t timeout = 100000;
         while(PinRDY::read() && timeout--);
     }
 
-    void Transaction(uint8_t byteCount)
+    void transaction(uint8_t byteCount)
     {
         CS_on();
         for (uint8_t i = 0; i < byteCount; ++i)
@@ -477,18 +477,28 @@ public:
         CS_off();
     }
 
-    void WakeUp()
+    void wake_up()
     {
         txBuffer[0] = 0;
         txBuffer[1] = 0x33; // Команда WAKEUP
         txBuffer[2] = 0;
-        Transaction(3);
+        transaction(3);
         IsOn = 1;
     }
 
-    void AddSyncFrameStandBy()
+    void add_sync_frame_standby()
     {
         cmdStandBy = 1;
+    }
+
+    void set_next_command(const uint8_t* cmdData, uint8_t size)
+    {
+        // Копируем данные команды в наш внутренний txBuffer
+        // Убедитесь, что size не превышает размер txBuffer
+        if (size <= sizeof(txBuffer))
+        {
+            std::memcpy(txBuffer, cmdData, size);
+        }
     }
 
     void AddSyncFrameUserCmd(uint8_t cmd, adscallback_t callback)
@@ -507,11 +517,11 @@ public:
         return false;
     }
 
-    void DataReadyHandler()
+    void data_ready_handler()
     {
         // Общая транзакция для чтения данных + 2 слова состояния
         // 2 (статус) + 8 (каналы) = 10 слов по 24 бита = 30 байт
-        Transaction(30);
+        transaction(30);
 
         uint8_t* ptr = rxBuffer + 3; // Пропускаем первые 3 байта статуса
         for (uint8_t i = 0; i < 8; i++)
@@ -539,7 +549,7 @@ public:
 			cmdStandBy = 0;
 			txBuffer[0] = 0;
 			txBuffer[1] = 0x22; // Команда STANDBY
-			Transaction(3);
+			transaction(3);
 			IsOn = 0;
 		}
     }

@@ -170,87 +170,210 @@ static bool Powered()
 }
 static void WakeUp(void)
 {
-	ads131.WakeUp();
+	ads131.wake_up();
 }
 static void StandBy(bool fullStop)
 {
 	// выполняется вконце фрейма (по даташиту)
 	// (после разрешения прерываний sei() в обработчике ads131.DataReadyHandler();)
-	ads131.AddSyncFrameStandBy();
+	ads131.add_sync_frame_standby();
 }
 
-static void AddSyncFrameSetupADC(void)
+//static void AddSyncFrameSetupADC(void)
+//{
+//	union rwreg_u rw;
+//	rw.wr.preambula = PRE_WREG;
+//	rw.wr.adr = 3;
+//	rw.wr.cnt = 4;
+//	Uart.buf[0] =rw.bt[1]; //h
+//	Uart.buf[1] =rw.bt[0]; //l
+//
+//	union clockreg_u clk;
+//	clk.clk.ch0_en = 1;
+//	clk.clk.ch1_en = 1;
+//	clk.clk.ch2_en = 1;
+//	clk.clk.ch3_en = 1;
+//	clk.clk.ch4_en = 1;
+//	clk.clk.ch5_en = 1;
+//	clk.clk.ch6_en = 1;
+//	clk.clk.xtal_dis = 1;
+//	clk.clk.pwr = 2; // hi power hi resolution
+//	clk.clk.osr = 7; // max filter setup
+//	Uart.buf[3] =clk.bt[1]; //h
+//	Uart.buf[4] =clk.bt[0]; //l
+//
+//	union gain1reg_u g1;
+////	g1.gain.pgagain1 = 1;
+////	g1.gain.pgagain2 = 1;
+////	g1.gain.pgagain3 = 1;
+//	Uart.buf[6] =g1.bt[1]; //h no gain
+//	Uart.buf[7] =g1.bt[0]; //l no gain
+//
+//	union gain2reg_u g2;
+////	g2.gain.pgagain4 = 1;
+////	g2.gain.pgagain6 = 1;
+////	g2.gain.pgagain5 = 1;
+//	Uart.buf[9] =g2.bt[1]; //h no gain
+//	Uart.buf[10] =g2.bt[0]; //l no gain
+//
+//	union cfgreg_u cfg;
+//	cfg.cfg.gc_en = 1; // global chop
+//	cfg.cfg.gc_delay = 0b11; //default delay
+//	Uart.buf[12] =cfg.bt[1]; //h
+//	Uart.buf[13] =cfg.bt[0]; //l
+//
+//	ads131.AddSyncFrameUserCmd(1,  0);
+//}
+//
+//#define READ_REGS_START 0
+//#define READ_REGS_CNT 7
+//static void cbReadADC(uint8_t cmd)
+//{
+//	ads131.Transaction(READ_REGS_CNT+1+1);
+//
+//	uint8_t* inptr = &Com.buf[DATA_POS];
+//	uint8_t* dptr = Uart.SpiData();
+//	for (uint8_t i =0; i< READ_REGS_CNT; i++)
+//	{
+//		dptr +=3;
+//		*inptr++ = dptr[1];
+//		*inptr++ = dptr[0];
+//	}
+//	Com.CRCSend(HEADER_LEN+READ_REGS_CNT*2);
+//}
+//static void AddSyncFrameReadRegsADC(void)
+//{
+//	union rwreg_u rw;
+//	rw.wr.preambula = PRE_RREG;
+//	rw.wr.adr = READ_REGS_START;
+//	rw.wr.cnt = READ_REGS_CNT;
+//	Uart.buf[0] =rw.bt[1]; //h
+//	Uart.buf[1] =rw.bt[0]; //l
+//
+//	ads131.AddSyncFrameUserCmd(2,  cbReadADC);
+//}
+
+/**
+ * @brief Готовит АЦП к переходу в режим StandBy в конце следующего фрейма данных.
+ * @tparam AdcType Тип экземпляра ads131_t.
+ * @param adc Ссылка на объект АЦП.
+ * @param fullStop Параметр оставлен для совместимости, но не используется.
+ */
+template <typename AdcType>
+void StandBy(AdcType& adc, bool fullStop)
 {
-	union rwreg_u rw;
-	rw.wr.preambula = PRE_WREG;
-	rw.wr.adr = 3;
-	rw.wr.cnt = 4;
-	Uart.buf[0] =rw.bt[1]; //h
-	Uart.buf[1] =rw.bt[0]; //l
-
-	union clockreg_u clk;
-	clk.clk.ch0_en = 1;
-	clk.clk.ch1_en = 1;
-	clk.clk.ch2_en = 1;
-	clk.clk.ch3_en = 1;
-	clk.clk.ch4_en = 1;
-	clk.clk.ch5_en = 1;
-	clk.clk.ch6_en = 1;
-	clk.clk.xtal_dis = 1;
-	clk.clk.pwr = 2; // hi power hi resolution
-	clk.clk.osr = 7; // max filter setup
-	Uart.buf[3] =clk.bt[1]; //h
-	Uart.buf[4] =clk.bt[0]; //l
-
-	union gain1reg_u g1;
-//	g1.gain.pgagain1 = 1;
-//	g1.gain.pgagain2 = 1;
-//	g1.gain.pgagain3 = 1;
-	Uart.buf[6] =g1.bt[1]; //h no gain
-	Uart.buf[7] =g1.bt[0]; //l no gain
-
-	union gain2reg_u g2;
-//	g2.gain.pgagain4 = 1;
-//	g2.gain.pgagain6 = 1;
-//	g2.gain.pgagain5 = 1;
-	Uart.buf[9] =g2.bt[1]; //h no gain
-	Uart.buf[10] =g2.bt[0]; //l no gain
-
-	union cfgreg_u cfg;
-	cfg.cfg.gc_en = 1; // global chop
-	cfg.cfg.gc_delay = 0b11; //default delay
-	Uart.buf[12] =cfg.bt[1]; //h
-	Uart.buf[13] =cfg.bt[0]; //l
-
-	ads131.AddSyncFrameUserCmd(1,  0);
+    // Просто регистрируем команду StandBy, которая будет выполнена в DataReadyHandler
+    adc.AddSyncFrameStandBy();
 }
 
+/**
+ * @brief Отправляет команду на настройку регистров АЦП.
+ * @tparam AdcType Тип экземпляра ads131_t.
+ * @param adc Ссылка на объект АЦП.
+ */
+template <typename AdcType>
+void AddSyncFrameSetupADC(AdcType& adc)
+{
+    uint8_t cmdBuffer[14] = {0}; // Локальный буфер для формирования команды
+
+    union rwreg_u rw;
+    rw.wr.preambula = PRE_WREG;
+    rw.wr.adr = 3;      // Адрес первого регистра для записи (CLOCK)
+    rw.wr.cnt = 4;      // Количество регистров для записи - 1 (т.е. 4 регистра)
+    cmdBuffer[0] = rw.bt[1]; //h
+    cmdBuffer[1] = rw.bt[0]; //l
+
+    union clockreg_u clk;
+    clk.clk.ch0_en = 1;
+    clk.clk.ch1_en = 1;
+    clk.clk.ch2_en = 1;
+    clk.clk.ch3_en = 1;
+    clk.clk.ch4_en = 1;
+    clk.clk.ch5_en = 1;
+    clk.clk.ch6_en = 1;
+    clk.clk.xtal_dis = 1;
+    clk.clk.pwr = 2; // hi power hi resolution
+    clk.clk.osr = 7; // max filter setup
+    cmdBuffer[2] = 0; // Пустой байт
+    cmdBuffer[3] = clk.bt[1]; //h
+    cmdBuffer[4] = clk.bt[0]; //l
+
+    union gain1reg_u g1;
+    // g1.gain.pgagain1 = 1;
+    cmdBuffer[5] = 0; // Пустой байт
+    cmdBuffer[6] = g1.bt[1]; //h no gain
+    cmdBuffer[7] = g1.bt[0]; //l no gain
+
+    union gain2reg_u g2;
+    // g2.gain.pgagain4 = 1;
+    cmdBuffer[8] = 0; // Пустой байт
+    cmdBuffer[9] = g2.bt[1]; //h no gain
+    cmdBuffer[10] = g2.bt[0]; //l no gain
+
+    union cfgreg_u cfg;
+    cfg.cfg.gc_en = 1; // global chop
+    cfg.cfg.gc_delay = 0b11; //default delay
+    cmdBuffer[11] = 0; // Пустой байт
+    cmdBuffer[12] = cfg.bt[1]; //h
+    cmdBuffer[13] = cfg.bt[0]; //l
+
+    // Загружаем сформированную команду в буфер АЦП
+    adc.setNextCommand(cmdBuffer, sizeof(cmdBuffer));
+    // Регистрируем команду без обратного вызова
+    adc.AddSyncFrameUserCmd(1, nullptr);
+}
+
+// Константы для команды чтения
+#define HEADER_LEN 3
+#define DATA_POS 2
 #define READ_REGS_START 0
 #define READ_REGS_CNT 7
-static void cbReadADC(uint8_t cmd)
-{
-	ads131.Transaction(READ_REGS_CNT+1+1);
 
-	uint8_t* inptr = &Com.buf[DATA_POS];
-	uint8_t* dptr = Uart.SpiData();
-	for (uint8_t i =0; i< READ_REGS_CNT; i++)
-	{
-		dptr +=3;
-		*inptr++ = dptr[1];
-		*inptr++ = dptr[0];
-	}
-	Com.CRCSend(HEADER_LEN+READ_REGS_CNT*2);
-}
-static void AddSyncFrameReadRegsADC(void)
+/**
+ * @brief Отправляет команду на чтение регистров АЦП и устанавливает обработчик ответа.
+ * @tparam AdcType Тип экземпляра ads131_t.
+ * @param adc Ссылка на объект АЦП.
+ * @param Com Ссылка на объект для отправки ответа (например, ваш класс Com).
+ * @param Uart Ссылка на объект Uart, где лежат буферы (если нужно).
+ */
+template <typename AdcType, typename ComType>
+void AddSyncFrameReadRegsADC(AdcType& adc, ComType& Com)
 {
-	union rwreg_u rw;
-	rw.wr.preambula = PRE_RREG;
-	rw.wr.adr = READ_REGS_START;
-	rw.wr.cnt = READ_REGS_CNT;
-	Uart.buf[0] =rw.bt[1]; //h
-	Uart.buf[1] =rw.bt[0]; //l
+    uint8_t cmdBuffer[2] = {0};
 
-	ads131.AddSyncFrameUserCmd(2,  cbReadADC);
+    union rwreg_u rw;
+    rw.wr.preambula = PRE_RREG;
+    rw.wr.adr = READ_REGS_START;
+    rw.wr.cnt = READ_REGS_CNT;
+    cmdBuffer[0] = rw.bt[1]; //h
+    cmdBuffer[1] = rw.bt[0]; //l
+
+    adc.setNextCommand(cmdBuffer, sizeof(cmdBuffer));
+
+    // Создаем лямбда-функцию в качестве коллбэка
+    // Она "захватывает" ссылки на adc и Com, чтобы использовать их внутри
+    auto callback = [&](uint8_t cmd_code) {
+        // Тело старой функции cbReadADC теперь здесь
+
+        // Получаем доступ к rxBuffer напрямую из объекта adc
+        const uint8_t* adcRxBuffer = adc.getRxBuffer(); // Предполагается, что вы добавите геттер
+
+        uint8_t* out_ptr = &Com.buf[DATA_POS];
+
+        // Пропускаем байты статуса и команды, начинаем с данных регистров
+        const uint8_t* data_ptr = adcRxBuffer + 3; // Пропускаем 3 байта ответа на команду
+
+        for (uint8_t i = 0; i < READ_REGS_CNT; i++)
+        {
+            *out_ptr++ = data_ptr[1]; // Копируем данные регистров
+            *out_ptr++ = data_ptr[0];
+            data_ptr += 3; // Переходим к следующему регистру (2 байта данных + 1 пустой)
+        }
+        Com.CRCSend(HEADER_LEN + READ_REGS_CNT * 2);
+    };
+
+    // Регистрируем команду с нашим коллбэком
+    adc.AddSyncFrameUserCmd(2, callback);
 }
 
 int main()
@@ -302,15 +425,7 @@ int main()
         app_log::warning("Axel OK");
     }
 
-//    DELAY_MS(50);
-//    g_mag.set_mode();
-//    g_mag.set_mode_1();
-    ads131.Init();
-    NVIC_EnableIRQ(EXTI2_IRQn);
-//    if (!g_mag.check_whoiam())
-//            app_log::warning("Mag error!");
-//    else
-//        app_log::warning("MAg OK");
+    ads131.init();
 
     g_axel.norm_mode_2g_50hz();
     if (!g_gyro.check_whoiam())
@@ -327,6 +442,12 @@ int main()
 
     while (1)
     {
+            // В главном цикле проверяем готовность данных
+        if (ads131.checkDataReady())
+        {
+            ads131.data_ready_handler();
+            // Теперь можно использовать прочитанные данные из myAdc.data[]
+        }
 ////        Kx132::Xyz_data res = g_axel.read_xyz();
 //        res_m = {
 //            to_signed_18bit(g_mag.auto_sr_result[0]),
