@@ -470,3 +470,9 @@ int main()
 ////        run_periodic_scale_stabilization();
     }
 }
+
+extern "C" void EXTI4_IRQHandler(void)
+{
+    Ads::isr_handler();
+    G_green_led::toggle();
+}

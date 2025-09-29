@@ -305,6 +305,33 @@ private:
 
     // --- Приватные методы инициализации ---
 
+    void start_external_clock()
+    {
+        // 1. Включить тактирование порта GPIOA
+        // Это необходимо для настройки пина PA8.
+        if (!LL_AHB2_GRP1_IsEnabledClock(LL_AHB2_GRP1_PERIPH_GPIOA))
+        {
+            LL_AHB2_GRP1_EnableClock(LL_AHB2_GRP1_PERIPH_GPIOA);
+        }
+
+        // 2. Настроить пин PA8 в режим Alternate Function для MCO
+        LL_GPIO_InitTypeDef GPIO_InitStruct;
+        LL_GPIO_StructInit(&GPIO_InitStruct);
+        GPIO_InitStruct.Pin = LL_GPIO_PIN_8;
+        GPIO_InitStruct.Mode = LL_GPIO_MODE_ALTERNATE;
+        GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_VERY_HIGH; // Высокая скорость для 8 МГц
+        GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+        GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+        GPIO_InitStruct.Alternate = LL_GPIO_AF_0; // AF0 для MCO на PA8 в STM32G4
+        LL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+        // 3. Настроить MCO в периферии RCC
+        // Источник: HSI (High-Speed Internal oscillator), который обычно работает на 16 МГц.
+        // Делитель: /2, чтобы получить 16 МГц / 2 = 8 МГц.
+        // HSI включен по умолчанию после сброса, поэтому дополнительно его включать не нужно.
+        LL_RCC_ConfigMCO(LL_RCC_MCO1SOURCE_HSI, LL_RCC_MCO1_DIV_2);
+    }
+
     void spi_init()
     {
         // 1. Включить тактирование SPI1 и GPIO
@@ -430,7 +457,7 @@ public:
         {
             LL_EXTI_ClearFlag_0_31(PinRDY::pin_mask());
             if (instance()) {
-                instance()->internal_DataReady_Handler();
+                instance()->internal_dataready_handler();
             }
         }
     }
@@ -448,7 +475,8 @@ public:
         // Инициализация пина RDY
         PinRDY::init();
 
-        // Настройка SPI и EXTI
+        // Настройка 8MHz, SPI и EXTI
+        start_external_clock();
         spi_init();
         exti_init();
 
