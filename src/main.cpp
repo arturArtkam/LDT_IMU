@@ -448,15 +448,30 @@ int main()
 
     while (1)
     {
-        // ¬ главном цикле провер€ем готовность данных
         if (ads131.checkDataReady())
         {
             ads131.data_ready_handler();
+            if (SR_pin::read())
+            {
+                hmc_plus[0] = ads131.data[2];
+                hmc_plus[1] = ads131.data[3];
+                hmc_plus[2] = ads131.data[5];
+            }
+            else
+            {
+                hmc_minus[0] = -ads131.data[2];
+                hmc_minus[1] = -ads131.data[3];
+                hmc_minus[2] = -ads131.data[5];
+
+                hmc[0] = (hmc_plus[0] - hmc_minus[0]) / 2;
+                hmc[1] = (hmc_plus[1] - hmc_minus[1]) / 2;
+                hmc[2] = (hmc_plus[2] - hmc_minus[2]) / 2;
+            }
+            SR_pin::toggle();
 //            SR_pin::hi();
 //            for (volatile uint32_t delay = 0; delay < 4096; ++delay)
 //                __NOP();
 //            SR_pin::lo();
-            // “еперь можно использовать прочитанные данные из myAdc.data[]
         }
 
 
@@ -486,21 +501,4 @@ int main()
 extern "C" void EXTI4_IRQHandler(void)
 {
     Ads::isr_handler();
-    if (SR_pin::read())
-    {
-        hmc_plus[0] = ads131.data[2];
-        hmc_plus[1] = ads131.data[3];
-        hmc_plus[2] = ads131.data[5];
-    }
-    else
-    {
-        hmc_minus[0] = -ads131.data[2];
-        hmc_minus[1] = -ads131.data[3];
-        hmc_minus[2] = -ads131.data[5];
-
-        hmc[0] = (hmc_plus[0] - hmc_minus[0]) / 2;
-        hmc[1] = (hmc_plus[1] - hmc_minus[1]) / 2;
-        hmc[2] = (hmc_plus[2] - hmc_minus[2]) / 2;
-    }
-    SR_pin::toggle();
 }

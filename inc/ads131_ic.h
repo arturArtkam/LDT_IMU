@@ -276,17 +276,14 @@ typedef void (*adscallback_t)(uint8_t usercmd);
 // Шаблонный класс драйвера ads131_t для STM32F4
 //==================================================================================
 
-template <class PinCS,  // Например, Pin<GPIOA, 4, ...>
-          class PinRDY, // Например, Pin<GPIOA, 3, ...>
-          class PinSYNC // Например, Pin<GPIOA, 2, ...>
+template <class PinCS,
+          class PinRDY,
+          class PinSYNC
           >
 class ads131_t
 {
 private:
-    // Указатель на экземпляр для использования в статическом обработчике прерывания
-//    static ads131_t* instance;
-
-    /* Глобальный указатель на объект */
+    /* Глобальный указатель на объект для использования в статическом обработчике прерывания */
     static ads131_t*& instance()
     {
         static ads131_t* instance = nullptr;
@@ -294,21 +291,18 @@ private:
     }
 
     // Буферы для SPI транзакций
-    uint8_t tx_buffer[32];
-    uint8_t rx_buffer[32];
+    uint8_t _tx_buffer[32];
+    uint8_t _rx_buffer[32];
 
-    uint8_t UserCmd = 0;
-    adscallback_t cbf = nullptr;
-    uint8_t cmdStandBy = 0;
+    uint8_t _user_cmd;
+    adscallback_t cbf;
+    uint8_t _cmd_standby;
 
-    volatile bool dataReadyFlag = false;
-
-    // --- Приватные методы инициализации ---
+    volatile bool _data_ready_flag;
 
     void start_external_clock()
     {
-        // 1. Включить тактирование порта GPIOA
-        // Это необходимо для настройки пина PA8.
+        // 1. Включить тактирование порта GPIOA для настройки пина PA8.
         if (!LL_AHB2_GRP1_IsEnabledClock(LL_AHB2_GRP1_PERIPH_GPIOA))
         {
             LL_AHB2_GRP1_EnableClock(LL_AHB2_GRP1_PERIPH_GPIOA);
@@ -397,8 +391,7 @@ private:
         EXTI_InitStruct.Trigger = LL_EXTI_TRIGGER_FALLING; // Прерывание по спадающему фронту
         LL_EXTI_Init(&EXTI_InitStruct);
 
-        // 4. Включить прерывание в NVIC
-        // ВАЖНО: Выберите правильный IRQn в зависимости от номера пина!
+        // 4. Прерывание в NVIC
         // EXTI0_IRQn, EXTI1_IRQn, EXTI2_IRQn, EXTI3_IRQn, EXTI4_IRQn,
         // EXTI9_5_IRQn (для пинов 5-9), EXTI15_10_IRQn (для пинов 10-15)
         uint8_t pin = PinRDY::pin_num();
@@ -413,12 +406,6 @@ private:
 
         NVIC_SetPriority(irq, 1);
         NVIC_EnableIRQ(irq);
-    }
-
-    // Внутренний обработчик прерывания
-    void internal_dataready_handler()
-    {
-        dataReadyFlag = true;
     }
 
     // Простая задержка
@@ -450,7 +437,12 @@ public:
     int32_t data[8];
 	uint8_t IsOn = 0;
 
-    ads131_t()
+    ads131_t() : _tx_buffer{0},
+        _rx_buffer{0},
+        _user_cmd(0),
+        cbf(nullptr),
+        _cmd_standby(0),
+        _data_ready_flag(false)
     {
         PinCS::init();
         PinSYNC::init();
@@ -466,7 +458,7 @@ public:
         if (LL_EXTI_IsActiveFlag_0_31(PinRDY::pin_mask()) != RESET)
         {
             LL_EXTI_ClearFlag_0_31(PinRDY::pin_mask());
-            instance()->dataReadyFlag = true;
+            instance()->_data_ready_flag = true;
 //            if (instance()) {
 //                instance()->internal_dataready_handler();
 //            }
@@ -505,11 +497,11 @@ public:
         {
             // Ждем, пока буфер передачи не освободится
             while (!LL_SPI_IsActiveFlag_TXE(SPI1));
-            LL_SPI_TransmitData8(SPI1, tx_buffer[i]);
+            LL_SPI_TransmitData8(SPI1, _tx_buffer[i]);
 
             // Ждем, пока не будут получены данные
             while (!LL_SPI_IsActiveFlag_RXNE(SPI1));
-            rx_buffer[i] = LL_SPI_ReceiveData8(SPI1);
+            _rx_buffer[i] = LL_SPI_ReceiveData8(SPI1);
         }
         // Ждем завершения передачи
         while (LL_SPI_IsActiveFlag_BSY(SPI1));
@@ -518,39 +510,39 @@ public:
 
     void wake_up()
     {
-        tx_buffer[0] = 0;
-        tx_buffer[1] = 0x33; // Команда WAKEUP
-        tx_buffer[2] = 0;
+        _tx_buffer[0] = 0;
+        _tx_buffer[1] = 0x33; // Команда WAKEUP
+        _tx_buffer[2] = 0;
         transaction(3);
         IsOn = 1;
     }
 
     void add_sync_frame_standby()
     {
-        cmdStandBy = 1;
+        _cmd_standby = 1;
     }
 
     void set_next_command(const uint8_t* cmdData, uint8_t size)
     {
-        // Копируем данные команды в наш внутренний tx_buffer
-        // Убедитесь, что size не превышает размер tx_buffer
-        if (size <= sizeof(tx_buffer))
+        // Копируем данные команды в наш внутренний _tx_buffer
+        // Убедитесь, что size не превышает размер _tx_buffer
+        if (size <= sizeof(_tx_buffer))
         {
-            std::memcpy(tx_buffer, cmdData, size);
+            std::memcpy(_tx_buffer, cmdData, size);
         }
     }
 
     void AddSyncFrameUserCmd(uint8_t cmd, adscallback_t callback)
 	{
-		UserCmd = cmd;
+		_user_cmd = cmd;
 		cbf = callback;
 	}
 
     bool checkDataReady()
     {
-        if (dataReadyFlag)
+        if (_data_ready_flag)
         {
-            dataReadyFlag = false;
+            _data_ready_flag = false;
             return true;
         }
         return false;
@@ -562,32 +554,32 @@ public:
         // 2 (статус) + 8 (каналы) = 10 слов по 24 бита = 30 байт
         transaction(30);
 
-        uint8_t* ptr = rx_buffer + 3; // Пропускаем первые 3 байта статуса
+        uint8_t* ptr = _rx_buffer + 3; // Пропускаем первые 3 байта статуса
         for (uint8_t i = 0; i < 8; i++)
         {
             data[i] = _convert(ptr);
             ptr += 3;
         }
 
-        if (UserCmd)
+        if (_user_cmd)
 		{
-			uint8_t s = UserCmd;
-			UserCmd = 0;
+			uint8_t s = _user_cmd;
+			_user_cmd = 0;
 			if (cbf)
 			{
 				cbf(s);
 				cbf = nullptr;
 			}
             // Подготовить буфер для следующей транзакции (пустые команды)
-			tx_buffer[0] = 0;
-			tx_buffer[1] = 0;
+			_tx_buffer[0] = 0;
+			_tx_buffer[1] = 0;
 		}
 
-        if (cmdStandBy)
+        if (_cmd_standby)
 		{
-			cmdStandBy = 0;
-			tx_buffer[0] = 0;
-			tx_buffer[1] = 0x22; // Команда STANDBY
+			_cmd_standby = 0;
+			_tx_buffer[0] = 0;
+			_tx_buffer[1] = 0x22; // Команда STANDBY
 			transaction(3);
 			IsOn = 0;
 		}
