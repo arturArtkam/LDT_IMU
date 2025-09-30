@@ -294,8 +294,8 @@ private:
     }
 
     // Буферы для SPI транзакций
-    uint8_t txBuffer[32];
-    uint8_t rxBuffer[32];
+    uint8_t tx_buffer[32];
+    uint8_t rx_buffer[32];
 
     uint8_t UserCmd = 0;
     adscallback_t cbf = nullptr;
@@ -348,6 +348,13 @@ private:
         // И настроить для них AF5 (SPI1)
         // LL_GPIO_SetAFPin_0_7(GPIOA, LL_GPIO_PIN_5, LL_GPIO_AF_5);
         // ... и т.д.
+        typedef Af_pin<PORTA, 5, LL_GPIO_AF_5> Miso;
+        typedef Af_pin<PORTA, 6, LL_GPIO_AF_5> Mosi;
+        typedef Af_pin<PORTA, 7, LL_GPIO_AF_5> Clk;
+
+        Miso::init();
+        Mosi::init();
+        Clk::init();
 
         // 3. Настройка параметров SPI
         LL_SPI_InitTypeDef SPI_InitStruct;
@@ -360,6 +367,9 @@ private:
         SPI_InitStruct.NSS = LL_SPI_NSS_SOFT;
         SPI_InitStruct.BaudRate = LL_SPI_BAUDRATEPRESCALER_DIV16; // Выберите подходящий делитель
         SPI_InitStruct.BitOrder = LL_SPI_MSB_FIRST;
+
+        LL_SPI_SetRxFIFOThreshold(SPI1, LL_SPI_RX_FIFO_TH_QUARTER);
+
         LL_SPI_Init(SPI1, &SPI_InitStruct);
 
         // 4. Включить SPI
@@ -495,11 +505,11 @@ public:
         {
             // Ждем, пока буфер передачи не освободится
             while (!LL_SPI_IsActiveFlag_TXE(SPI1));
-            LL_SPI_TransmitData8(SPI1, txBuffer[i]);
+            LL_SPI_TransmitData8(SPI1, tx_buffer[i]);
 
             // Ждем, пока не будут получены данные
             while (!LL_SPI_IsActiveFlag_RXNE(SPI1));
-            rxBuffer[i] = LL_SPI_ReceiveData8(SPI1);
+            rx_buffer[i] = LL_SPI_ReceiveData8(SPI1);
         }
         // Ждем завершения передачи
         while (LL_SPI_IsActiveFlag_BSY(SPI1));
@@ -508,9 +518,9 @@ public:
 
     void wake_up()
     {
-        txBuffer[0] = 0;
-        txBuffer[1] = 0x33; // Команда WAKEUP
-        txBuffer[2] = 0;
+        tx_buffer[0] = 0;
+        tx_buffer[1] = 0x33; // Команда WAKEUP
+        tx_buffer[2] = 0;
         transaction(3);
         IsOn = 1;
     }
@@ -522,11 +532,11 @@ public:
 
     void set_next_command(const uint8_t* cmdData, uint8_t size)
     {
-        // Копируем данные команды в наш внутренний txBuffer
-        // Убедитесь, что size не превышает размер txBuffer
-        if (size <= sizeof(txBuffer))
+        // Копируем данные команды в наш внутренний tx_buffer
+        // Убедитесь, что size не превышает размер tx_buffer
+        if (size <= sizeof(tx_buffer))
         {
-            std::memcpy(txBuffer, cmdData, size);
+            std::memcpy(tx_buffer, cmdData, size);
         }
     }
 
@@ -552,7 +562,7 @@ public:
         // 2 (статус) + 8 (каналы) = 10 слов по 24 бита = 30 байт
         transaction(30);
 
-        uint8_t* ptr = rxBuffer + 3; // Пропускаем первые 3 байта статуса
+        uint8_t* ptr = rx_buffer + 3; // Пропускаем первые 3 байта статуса
         for (uint8_t i = 0; i < 8; i++)
         {
             data[i] = _convert(ptr);
@@ -569,15 +579,15 @@ public:
 				cbf = nullptr;
 			}
             // Подготовить буфер для следующей транзакции (пустые команды)
-			txBuffer[0] = 0;
-			txBuffer[1] = 0;
+			tx_buffer[0] = 0;
+			tx_buffer[1] = 0;
 		}
 
         if (cmdStandBy)
 		{
 			cmdStandBy = 0;
-			txBuffer[0] = 0;
-			txBuffer[1] = 0x22; // Команда STANDBY
+			tx_buffer[0] = 0;
+			tx_buffer[1] = 0x22; // Команда STANDBY
 			transaction(3);
 			IsOn = 0;
 		}

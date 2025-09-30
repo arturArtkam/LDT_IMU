@@ -284,16 +284,16 @@ void AddSyncFrameSetupADC(AdcType& adc)
     cmdBuffer[1] = rw.bt[0]; //l
 
     union clockreg_u clk;
-    clk.clk.ch0_en = 1;
-    clk.clk.ch1_en = 1;
+    clk.clk.ch0_en = 0;
+    clk.clk.ch1_en = 0;
     clk.clk.ch2_en = 1;
     clk.clk.ch3_en = 1;
-    clk.clk.ch4_en = 1;
+    clk.clk.ch4_en = 0;
     clk.clk.ch5_en = 1;
-    clk.clk.ch6_en = 1;
+    clk.clk.ch6_en = 0;
     clk.clk.xtal_dis = 1;
     clk.clk.pwr = 2; // hi power hi resolution
-    clk.clk.osr = 7; // max filter setup
+    clk.clk.osr = 0b011;//7; // max filter setup
     cmdBuffer[2] = 0; // Пустой байт
     cmdBuffer[3] = clk.bt[1]; //h
     cmdBuffer[4] = clk.bt[0]; //l
@@ -318,7 +318,7 @@ void AddSyncFrameSetupADC(AdcType& adc)
     cmdBuffer[13] = cfg.bt[0]; //l
 
     // Загружаем сформированную команду в буфер АЦП
-    adc.setNextCommand(cmdBuffer, sizeof(cmdBuffer));
+    adc.set_next_command(cmdBuffer, sizeof(cmdBuffer));
     // Регистрируем команду без обратного вызова
     adc.AddSyncFrameUserCmd(1, nullptr);
 }
@@ -355,7 +355,7 @@ void AddSyncFrameReadRegsADC(AdcType& adc, ComType& com)
     auto callback = [&](uint8_t cmd_code) {
         // Тело старой функции cbReadADC теперь здесь
 
-        // Получаем доступ к rxBuffer напрямую из объекта adc
+        // Получаем доступ к rx_buffer напрямую из объекта adc
         const uint8_t* adcRxBuffer = adc.getRxBuffer(); // Предполагается, что вы добавите геттер
 
         uint8_t* out_ptr = &com.buf[DATA_POS];
@@ -376,6 +376,10 @@ void AddSyncFrameReadRegsADC(AdcType& adc, ComType& com)
     adc.AddSyncFrameUserCmd(2, callback);
 }
 
+typedef Pin<PORTB, 2, LL_GPIO_MODE_OUTPUT, LL_GPIO_SPEED_FREQ_HIGH, LL_GPIO_OUTPUT_PUSHPULL> SR_pin;
+volatile int32_t hmc_plus[3], hmc_minus[3];
+volatile int32_t hmc[3];
+
 int main()
 {
     SystemClock_Config_LL();
@@ -388,25 +392,23 @@ int main()
 //    G_delay::init(clocks.PCLK2_Frequency);
     dbg_uart.init(&clocks);
 
-    /* Настройка прерываний со стороны mmc5983 */
-    G_mmc_int::init();
-    G_mmc_int::pulldown();
+    SR_pin::init();
 
-    LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_SYSCFG);
-    LL_SYSCFG_SetEXTISource(LL_SYSCFG_EXTI_PORTB, LL_SYSCFG_EXTI_LINE2);
+//    LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_SYSCFG);
+//    LL_SYSCFG_SetEXTISource(LL_SYSCFG_EXTI_PORTB, LL_SYSCFG_EXTI_LINE2);
 
-    LL_EXTI_InitTypeDef exti;
-    LL_EXTI_StructInit(&exti);
-
-    exti.Line_0_31 = LL_EXTI_LINE_2;
-    exti.LineCommand = ENABLE;
-    exti.Mode = LL_EXTI_MODE_IT;
-    exti.Trigger = LL_EXTI_TRIGGER_FALLING;
-
-    LL_EXTI_Init(&exti);
-    LL_EXTI_EnableIT_0_31(LL_EXTI_LINE_2);
-//    LL_EXTI_EnableFallingTrig_0_31(LL_EXTI_LINE_2);
-    LL_EXTI_EnableRisingTrig_0_31(LL_EXTI_LINE_2);
+//    LL_EXTI_InitTypeDef exti;
+//    LL_EXTI_StructInit(&exti);
+//
+//    exti.Line_0_31 = LL_EXTI_LINE_2;
+//    exti.LineCommand = ENABLE;
+//    exti.Mode = LL_EXTI_MODE_IT;
+//    exti.Trigger = LL_EXTI_TRIGGER_FALLING;
+//
+//    LL_EXTI_Init(&exti);
+//    LL_EXTI_EnableIT_0_31(LL_EXTI_LINE_2);
+////    LL_EXTI_EnableFallingTrig_0_31(LL_EXTI_LINE_2);
+//    LL_EXTI_EnableRisingTrig_0_31(LL_EXTI_LINE_2);
 
     app_log::warning("Wrapper System ini ", clocks.SYSCLK_Frequency, "Hz ", clocks.HCLK_Frequency, "Hz");
 
@@ -415,39 +417,49 @@ int main()
         S_X(S_x[i], i);
     }
 
-    g_axel.spibus_conf(LL_SPI_POLARITY_HIGH, LL_SPI_PHASE_2EDGE, LL_SPI_BAUDRATEPRESCALER_DIV64);
-    if (!g_axel.pwr_up())
-    {
-        app_log::warning("Axel ini error!");
-    }
-    else
-    {
-        app_log::warning("Axel OK");
-    }
+//    g_axel.spibus_conf(LL_SPI_POLARITY_HIGH, LL_SPI_PHASE_2EDGE, LL_SPI_BAUDRATEPRESCALER_DIV64);
+//    if (!g_axel.pwr_up())
+//    {
+//        app_log::warning("Axel ini error!");
+//    }
+//    else
+//    {
+//        app_log::warning("Axel OK");
+//    }
 
     ads131.init();
+    WakeUp();
+    AddSyncFrameSetupADC(ads131);
 
-    g_axel.norm_mode_2g_50hz();
-    if (!g_gyro.check_whoiam())
-    {
-        app_log::warning("Gyroscope ini error!");
-    }
-    else
-    {
-        app_log::warning("Gyroscope OK");
-    }
+//    g_axel.norm_mode_2g_50hz();
+//    if (!g_gyro.check_whoiam())
+//    {
+//        app_log::warning("Gyroscope ini error!");
+//    }
+//    else
+//    {
+//        app_log::warning("Gyroscope OK");
+//    }
 //    (void) res;
 //    Gyro::init();
 //    Mag::init();
 
+
+
     while (1)
     {
-            // В главном цикле проверяем готовность данных
+        // В главном цикле проверяем готовность данных
         if (ads131.checkDataReady())
         {
             ads131.data_ready_handler();
+//            SR_pin::hi();
+//            for (volatile uint32_t delay = 0; delay < 4096; ++delay)
+//                __NOP();
+//            SR_pin::lo();
             // Теперь можно использовать прочитанные данные из myAdc.data[]
         }
+
+
 ////        Kx132::Xyz_data res = g_axel.read_xyz();
 //        res_m = {
 //            to_signed_18bit(g_mag.auto_sr_result[0]),
@@ -474,5 +486,21 @@ int main()
 extern "C" void EXTI4_IRQHandler(void)
 {
     Ads::isr_handler();
-    G_green_led::toggle();
+    if (SR_pin::read())
+    {
+        hmc_plus[0] = ads131.data[2];
+        hmc_plus[1] = ads131.data[3];
+        hmc_plus[2] = ads131.data[5];
+    }
+    else
+    {
+        hmc_minus[0] = -ads131.data[2];
+        hmc_minus[1] = -ads131.data[3];
+        hmc_minus[2] = -ads131.data[5];
+
+        hmc[0] = (hmc_plus[0] - hmc_minus[0]) / 2;
+        hmc[1] = (hmc_plus[1] - hmc_minus[1]) / 2;
+        hmc[2] = (hmc_plus[2] - hmc_minus[2]) / 2;
+    }
+    SR_pin::toggle();
 }
