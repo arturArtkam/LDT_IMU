@@ -179,80 +179,6 @@ static void StandBy(bool fullStop)
 	ads131.add_sync_frame_standby();
 }
 
-//static void AddSyncFrameSetupADC(void)
-//{
-//	union rwreg_u rw;
-//	rw.wr.preambula = PRE_WREG;
-//	rw.wr.adr = 3;
-//	rw.wr.cnt = 4;
-//	Uart.buf[0] =rw.bt[1]; //h
-//	Uart.buf[1] =rw.bt[0]; //l
-//
-//	union clockreg_u clk;
-//	clk.clk.ch0_en = 1;
-//	clk.clk.ch1_en = 1;
-//	clk.clk.ch2_en = 1;
-//	clk.clk.ch3_en = 1;
-//	clk.clk.ch4_en = 1;
-//	clk.clk.ch5_en = 1;
-//	clk.clk.ch6_en = 1;
-//	clk.clk.xtal_dis = 1;
-//	clk.clk.pwr = 2; // hi power hi resolution
-//	clk.clk.osr = 7; // max filter setup
-//	Uart.buf[3] =clk.bt[1]; //h
-//	Uart.buf[4] =clk.bt[0]; //l
-//
-//	union gain1reg_u g1;
-////	g1.gain.pgagain1 = 1;
-////	g1.gain.pgagain2 = 1;
-////	g1.gain.pgagain3 = 1;
-//	Uart.buf[6] =g1.bt[1]; //h no gain
-//	Uart.buf[7] =g1.bt[0]; //l no gain
-//
-//	union gain2reg_u g2;
-////	g2.gain.pgagain4 = 1;
-////	g2.gain.pgagain6 = 1;
-////	g2.gain.pgagain5 = 1;
-//	Uart.buf[9] =g2.bt[1]; //h no gain
-//	Uart.buf[10] =g2.bt[0]; //l no gain
-//
-//	union cfgreg_u cfg;
-//	cfg.cfg.gc_en = 1; // global chop
-//	cfg.cfg.gc_delay = 0b11; //default delay
-//	Uart.buf[12] =cfg.bt[1]; //h
-//	Uart.buf[13] =cfg.bt[0]; //l
-//
-//	ads131.AddSyncFrameUserCmd(1,  0);
-//}
-//
-//#define READ_REGS_START 0
-//#define READ_REGS_CNT 7
-//static void cbReadADC(uint8_t cmd)
-//{
-//	ads131.Transaction(READ_REGS_CNT+1+1);
-//
-//	uint8_t* inptr = &Com.buf[DATA_POS];
-//	uint8_t* dptr = Uart.SpiData();
-//	for (uint8_t i =0; i< READ_REGS_CNT; i++)
-//	{
-//		dptr +=3;
-//		*inptr++ = dptr[1];
-//		*inptr++ = dptr[0];
-//	}
-//	Com.CRCSend(HEADER_LEN+READ_REGS_CNT*2);
-//}
-//static void AddSyncFrameReadRegsADC(void)
-//{
-//	union rwreg_u rw;
-//	rw.wr.preambula = PRE_RREG;
-//	rw.wr.adr = READ_REGS_START;
-//	rw.wr.cnt = READ_REGS_CNT;
-//	Uart.buf[0] =rw.bt[1]; //h
-//	Uart.buf[1] =rw.bt[0]; //l
-//
-//	ads131.AddSyncFrameUserCmd(2,  cbReadADC);
-//}
-
 /**
  * @brief Готовит АЦП к переходу в режим StandBy в конце следующего фрейма данных.
  * @tparam AdcType Тип экземпляра ads131_t.
@@ -394,22 +320,6 @@ int main()
 
     SR_pin::init();
 
-//    LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_SYSCFG);
-//    LL_SYSCFG_SetEXTISource(LL_SYSCFG_EXTI_PORTB, LL_SYSCFG_EXTI_LINE2);
-
-//    LL_EXTI_InitTypeDef exti;
-//    LL_EXTI_StructInit(&exti);
-//
-//    exti.Line_0_31 = LL_EXTI_LINE_2;
-//    exti.LineCommand = ENABLE;
-//    exti.Mode = LL_EXTI_MODE_IT;
-//    exti.Trigger = LL_EXTI_TRIGGER_FALLING;
-//
-//    LL_EXTI_Init(&exti);
-//    LL_EXTI_EnableIT_0_31(LL_EXTI_LINE_2);
-////    LL_EXTI_EnableFallingTrig_0_31(LL_EXTI_LINE_2);
-//    LL_EXTI_EnableRisingTrig_0_31(LL_EXTI_LINE_2);
-
     app_log::warning("Wrapper System ini ", clocks.SYSCLK_Frequency, "Hz ", clocks.HCLK_Frequency, "Hz");
 
     /* считаем коэф для аппрох для всех К!!!!!!!!!!! */
@@ -468,10 +378,6 @@ int main()
                 hmc[2] = (hmc_plus[2] - hmc_minus[2]) / 2;
             }
             SR_pin::toggle();
-//            SR_pin::hi();
-//            for (volatile uint32_t delay = 0; delay < 4096; ++delay)
-//                __NOP();
-//            SR_pin::lo();
         }
 
 
