@@ -6,6 +6,7 @@
 		<Option title="LDT_IMU_1" />
 		<Option pch_mode="2" />
 		<Option compiler="armgcc_eb" />
+		<Option virtualFolders="inc\;" />
 		<Build>
 			<Target title="Debug">
 				<Option output="bin\Debug\LDT_IMU_1.elf" />
@@ -211,7 +212,9 @@
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="stm32g474ce_flash.ld" />
-		<Unit filename="STM32G474xx.svd" />
+		<Unit filename="STM32G474xx.svd">
+			<Option virtualFolder="inc\" />
+		</Unit>
 		<Unit filename="..\..\Lib\if_constexpr.h" />
 		<Unit filename="..\..\Lib\pin_ll_g4xx.h" />
 		<Extensions>

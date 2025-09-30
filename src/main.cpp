@@ -337,7 +337,7 @@ void AddSyncFrameSetupADC(AdcType& adc)
  * @param Uart Ссылка на объект Uart, где лежат буферы (если нужно).
  */
 template <typename AdcType, typename ComType>
-void AddSyncFrameReadRegsADC(AdcType& adc, ComType& Com)
+void AddSyncFrameReadRegsADC(AdcType& adc, ComType& com)
 {
     uint8_t cmdBuffer[2] = {0};
 
@@ -351,14 +351,14 @@ void AddSyncFrameReadRegsADC(AdcType& adc, ComType& Com)
     adc.setNextCommand(cmdBuffer, sizeof(cmdBuffer));
 
     // Создаем лямбда-функцию в качестве коллбэка
-    // Она "захватывает" ссылки на adc и Com, чтобы использовать их внутри
+    // Она "захватывает" ссылки на adc и com, чтобы использовать их внутри
     auto callback = [&](uint8_t cmd_code) {
         // Тело старой функции cbReadADC теперь здесь
 
         // Получаем доступ к rxBuffer напрямую из объекта adc
         const uint8_t* adcRxBuffer = adc.getRxBuffer(); // Предполагается, что вы добавите геттер
 
-        uint8_t* out_ptr = &Com.buf[DATA_POS];
+        uint8_t* out_ptr = &com.buf[DATA_POS];
 
         // Пропускаем байты статуса и команды, начинаем с данных регистров
         const uint8_t* data_ptr = adcRxBuffer + 3; // Пропускаем 3 байта ответа на команду
@@ -369,7 +369,7 @@ void AddSyncFrameReadRegsADC(AdcType& adc, ComType& Com)
             *out_ptr++ = data_ptr[0];
             data_ptr += 3; // Переходим к следующему регистру (2 байта данных + 1 пустой)
         }
-        Com.CRCSend(HEADER_LEN + READ_REGS_CNT * 2);
+        com.CRCSend(HEADER_LEN + READ_REGS_CNT * 2);
     };
 
     // Регистрируем команду с нашим коллбэком

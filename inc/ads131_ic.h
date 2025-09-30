@@ -456,9 +456,10 @@ public:
         if (LL_EXTI_IsActiveFlag_0_31(PinRDY::pin_mask()) != RESET)
         {
             LL_EXTI_ClearFlag_0_31(PinRDY::pin_mask());
-            if (instance()) {
-                instance()->internal_dataready_handler();
-            }
+            instance()->dataReadyFlag = true;
+//            if (instance()) {
+//                instance()->internal_dataready_handler();
+//            }
         }
     }
 
