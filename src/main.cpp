@@ -386,12 +386,17 @@ int main()
                 offset[0] = (hmc_plus[0] - hmc_minus[0]) / 2;
                 offset[1] = (hmc_plus[1] - hmc_minus[1]) / 2;
                 offset[2] = (hmc_plus[2] - hmc_minus[2]) / 2;
+
+                if (cnt > 3) print(dbg_uart, (int32_t)hmc[0], ", ", (int32_t)hmc[1], ", ", (int32_t)hmc[2], "\n");
             }
             else
             {
                 hmc[0] = ads131.data[3] - offset[0];
                 hmc[1] = ads131.data[2] - offset[1];
                 hmc[2] = ads131.data[5] - offset[2];
+
+
+//                app_log::warning(hmc[0], ", ", hmc[1], ", ", hmc[2]);
             }
 
             cnt++;
