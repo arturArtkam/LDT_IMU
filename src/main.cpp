@@ -304,7 +304,8 @@ void AddSyncFrameReadRegsADC(AdcType& adc, ComType& com)
 
 typedef Pin<PORTB, 2, LL_GPIO_MODE_OUTPUT, LL_GPIO_SPEED_FREQ_HIGH, LL_GPIO_OUTPUT_PUSHPULL> SR_pin;
 volatile int32_t hmc_plus[3], hmc_minus[3];
-volatile int32_t hmc[3];
+volatile int32_t hmc[3], offset[3];
+uint32_t cnt = 0;
 
 int main()
 {
@@ -361,23 +362,39 @@ int main()
         if (ads131.checkDataReady())
         {
             ads131.data_ready_handler();
-            if (SR_pin::read())
+
+            if ((cnt & 511) == 0)
             {
-                hmc_plus[0] = ads131.data[2];
-                hmc_plus[1] = ads131.data[3];
+                SR_pin::hi();
+            }
+            else if ((cnt & 511) == 1)
+            {
+                hmc_plus[0] = ads131.data[3];
+                hmc_plus[1] = ads131.data[2];
                 hmc_plus[2] = ads131.data[5];
+            }
+            else if ((cnt & 511) == 2)
+            {
+                SR_pin::lo();
+            }
+            else if ((cnt & 511) == 3)
+            {
+                hmc_minus[0] = -ads131.data[3];
+                hmc_minus[1] = -ads131.data[2];
+                hmc_minus[2] = -ads131.data[5];
+
+                offset[0] = (hmc_plus[0] - hmc_minus[0]) / 2;
+                offset[1] = (hmc_plus[1] - hmc_minus[1]) / 2;
+                offset[2] = (hmc_plus[2] - hmc_minus[2]) / 2;
             }
             else
             {
-                hmc_minus[0] = -ads131.data[2];
-                hmc_minus[1] = -ads131.data[3];
-                hmc_minus[2] = -ads131.data[5];
-
-                hmc[0] = (hmc_plus[0] - hmc_minus[0]) / 2;
-                hmc[1] = (hmc_plus[1] - hmc_minus[1]) / 2;
-                hmc[2] = (hmc_plus[2] - hmc_minus[2]) / 2;
+                hmc[0] = ads131.data[3] - offset[0];
+                hmc[1] = ads131.data[2] - offset[1];
+                hmc[2] = ads131.data[5] - offset[2];
             }
-            SR_pin::toggle();
+
+            cnt++;
         }
 
 
