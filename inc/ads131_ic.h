@@ -115,7 +115,7 @@ typedef void (*adscallback_t)(uint8_t usercmd);
 template <class PinCS,
           class PinRDY,
           class PinSYNC
-          >
+>
 class ads131_t
 {
 private:

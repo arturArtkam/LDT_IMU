@@ -303,8 +303,8 @@ void AddSyncFrameReadRegsADC(AdcType& adc, ComType& com)
 }
 
 typedef Pin<PORTB, 2, LL_GPIO_MODE_OUTPUT, LL_GPIO_SPEED_FREQ_HIGH, LL_GPIO_OUTPUT_PUSHPULL> SR_pin;
-volatile int32_t hmc_plus[3], hmc_minus[3];
-volatile int32_t hmc[3], offset[3];
+volatile int32_t hmc_plus[3] = {0}, hmc_minus[3] = {0};
+volatile int32_t hmc[3] = {0}, offset[3] = {0};
 uint32_t cnt = 0;
 
 int main()
@@ -355,6 +355,23 @@ int main()
 //    Gyro::init();
 //    Mag::init();
 
+    // Период калибровки в сэмплах (должен быть степенью двойки)
+    constexpr uint32_t CALIBRATION_PERIOD_SAMPLES = 512;
+    constexpr uint32_t CALIBRATION_PERIOD_MASK = CALIBRATION_PERIOD_SAMPLES - 1;
+
+    // Индексы каналов АЦП для осей
+    constexpr uint8_t HMC_ADC_CHANNEL_X = 3;
+    constexpr uint8_t HMC_ADC_CHANNEL_Y = 2;
+    constexpr uint8_t HMC_ADC_CHANNEL_Z = 5;
+
+    // Состояния конечного автомата калибровки
+    enum
+    {
+        SET_PULSE,
+        MEASURE_PLUS,
+        RESET_PULSE,
+        MEASURE_MINUS_AND_CALCULATE
+    };
 
 
     while (1)
@@ -363,42 +380,41 @@ int main()
         {
             ads131.data_ready_handler();
 
-            if ((cnt & 511) == 0)
+            if ((cnt & CALIBRATION_PERIOD_MASK) == SET_PULSE)
             {
                 SR_pin::hi();
             }
-            else if ((cnt & 511) == 1)
+            else if ((cnt & CALIBRATION_PERIOD_MASK) == MEASURE_PLUS)
             {
-                hmc_plus[0] = ads131.data[3];
-                hmc_plus[1] = ads131.data[2];
-                hmc_plus[2] = ads131.data[5];
+                hmc_plus[0] = ads131.data[HMC_ADC_CHANNEL_X];
+                hmc_plus[1] = ads131.data[HMC_ADC_CHANNEL_Y];
+                hmc_plus[2] = ads131.data[HMC_ADC_CHANNEL_Z];
             }
-            else if ((cnt & 511) == 2)
+            else if ((cnt & CALIBRATION_PERIOD_MASK) == RESET_PULSE)
             {
                 SR_pin::lo();
             }
-            else if ((cnt & 511) == 3)
+            else if ((cnt & CALIBRATION_PERIOD_MASK) == MEASURE_MINUS_AND_CALCULATE)
             {
-                hmc_minus[0] = -ads131.data[3];
-                hmc_minus[1] = -ads131.data[2];
-                hmc_minus[2] = -ads131.data[5];
-
-                offset[0] = (hmc_plus[0] - hmc_minus[0]) / 2;
-                offset[1] = (hmc_plus[1] - hmc_minus[1]) / 2;
-                offset[2] = (hmc_plus[2] - hmc_minus[2]) / 2;
-
-                if (cnt > 3) print(dbg_uart, (int32_t)hmc[0], ", ", (int32_t)hmc[1], ", ", (int32_t)hmc[2], "\n");
+                hmc_minus[0] = -ads131.data[HMC_ADC_CHANNEL_X];
+                hmc_minus[1] = -ads131.data[HMC_ADC_CHANNEL_Y];
+                hmc_minus[2] = -ads131.data[HMC_ADC_CHANNEL_Z];
+                // Деление на 2 заменено на сдвиг для производительности
+                offset[0] = (hmc_plus[0] - hmc_minus[0]) >> 1;
+                offset[1] = (hmc_plus[1] - hmc_minus[1]) >> 1;
+                offset[2] = (hmc_plus[2] - hmc_minus[2]) >> 1;
             }
             else
             {
-                hmc[0] = ads131.data[3] - offset[0];
-                hmc[1] = ads131.data[2] - offset[1];
-                hmc[2] = ads131.data[5] - offset[2];
+                hmc[0] = ads131.data[HMC_ADC_CHANNEL_X] - offset[0];
+                hmc[1] = ads131.data[HMC_ADC_CHANNEL_Y] - offset[1];
+                hmc[2] = ads131.data[HMC_ADC_CHANNEL_Z] - offset[2];
 
 
 //                app_log::warning(hmc[0], ", ", hmc[1], ", ", hmc[2]);
             }
 
+            if ((cnt > 3) && ((cnt & 0xFF) == 0)) print(dbg_uart, (int32_t)hmc[0], ", ", (int32_t)hmc[1], ", ", (int32_t)hmc[2], "\n");
             cnt++;
         }
 
