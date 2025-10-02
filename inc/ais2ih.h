@@ -214,7 +214,7 @@ public:
         // Шаг 1: Отправка адреса и холостое чтение "мусорного" байта
         // Убедимся, что буфер TX пуст перед отправкой
         while (!LL_SPI_IsActiveFlag_TXE(SPI1));
-        LL_SPI_TransmitData8(SPI1, (0x80 | addr)); // Отправляем адрес с флагом чтения
+        LL_SPI_TransmitData8(SPI1, (0x80 | addr));
         // Ждем ответный байт (который нам не нужен) и очищаем буфер RX
         while (!LL_SPI_IsActiveFlag_RXNE(SPI1));
         (void)LL_SPI_ReceiveData8(SPI1); // Холостое чтение
@@ -270,7 +270,8 @@ public:
 
     void read_all_axes(Xyz_data* data)
     {
-        union {
+        union
+        {
             uint8_t bytes[6];
             Xyz_data raw_data;
         } buffer;
@@ -283,12 +284,13 @@ public:
         while (!LL_SPI_IsActiveFlag_RXNE(SPI1));
         (void)LL_SPI_ReceiveData8(SPI1); // Холостое чтение
 
-        // 2. Последовательно читаем 6 байт данных
-        for (int i = 0; i < 6; ++i) {
+        // 2. Последовательное чтение 6 байт данных
+        for (int i = 0; i < 6; ++i)
+        {
             while (!LL_SPI_IsActiveFlag_TXE(SPI1));
             LL_SPI_TransmitData8(SPI1, 0x00); // Отправляем пустышку
             while (!LL_SPI_IsActiveFlag_RXNE(SPI1));
-            buffer.bytes[i] = LL_SPI_ReceiveData8(SPI1); // Читаем байт
+            buffer.bytes[i] = LL_SPI_ReceiveData8(SPI1);
         }
 
         while (LL_SPI_IsActiveFlag_BSY(SPI1));

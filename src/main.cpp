@@ -176,6 +176,7 @@ static void StandBy(bool fullStop)
 {
 	// выполняется вконце фрейма (по даташиту)
 	// (после разрешения прерываний sei() в обработчике ads131.DataReadyHandler();)
+	(void) fullStop;
 	ads131.add_sync_frame_standby();
 }
 
