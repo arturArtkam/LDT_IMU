@@ -473,7 +473,8 @@ int main()
         Ais2ih::Xyz_data res = {0, 0, 0};//g_axel.read_xyz();
         g_axel.read_all_axes(&res);
         axel = {(float)res.a_x, (float)res.a_y, (float)res.a_z};
-        print(dbg_uart, mag.X, ", ", mag.Y, ", ", mag.Z, ", ", axel.X, ", ", axel.Y, ", ", axel.Z);
+//        print(dbg_uart, mag.X, ", ", mag.Y, ", ", mag.Z, ", ", axel.X, ", ", axel.Y, ", ", axel.Z);
+        print(dbg_uart, axel.X, ", ", axel.Y, ", ", axel.Z);
         DELAY_MS(100);
 
 

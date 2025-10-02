@@ -200,7 +200,7 @@ protected:
 
 } /* namespace cxxlog */
 
-__attribute__((always_inline)) inline void print(TextStream& stream) { stream << "\r"; }
+__attribute__((always_inline)) inline void print(TextStream& stream) { stream << "\n\r"; }
 
 template <class First, class... Other>
 __attribute__((always_inline)) inline void print(TextStream& stream, const First &first, const Other&... other)
