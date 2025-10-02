@@ -13,12 +13,12 @@ extern "C" {
 
 #include "pin_ll_g4xx.h"
 
-typedef Pin<PORTA, 15, LL_GPIO_MODE_OUTPUT, LL_GPIO_SPEED_FREQ_MEDIUM, LL_GPIO_OUTPUT_PUSHPULL, LL_GPIO_PULL_NO> G_red_led;
-typedef Pin<PORTB, 3, LL_GPIO_MODE_OUTPUT, LL_GPIO_SPEED_FREQ_MEDIUM, LL_GPIO_OUTPUT_PUSHPULL, LL_GPIO_PULL_NO> G_green_led;
+typedef Pin<PORTA, 15, LL_GPIO_MODE_OUTPUT, LL_GPIO_SPEED_FREQ_MEDIUM, LL_GPIO_OUTPUT_PUSHPULL, LL_GPIO_PULL_NO> G_green_led;
+typedef Pin<PORTB, 3, LL_GPIO_MODE_OUTPUT, LL_GPIO_SPEED_FREQ_MEDIUM, LL_GPIO_OUTPUT_PUSHPULL, LL_GPIO_PULL_NO> G_red_led;
 typedef Pin<PORTB, 11, LL_GPIO_MODE_OUTPUT, LL_GPIO_SPEED_FREQ_MEDIUM> G_pin_int;
 
 #include "uart_ll_g4xx.h"
-//#include "delay_tim.h"
+#include "delay.h"
 #include "mb85_ic.h"
 
 #define bitRead(value, bit) (((value) >> (bit)) & 0x01)
@@ -33,20 +33,20 @@ typedef Pin<PORTB, 11, LL_GPIO_MODE_OUTPUT, LL_GPIO_SPEED_FREQ_MEDIUM> G_pin_int
 //typedef Pin<PORTB, 11, LL_GPIO_MODE_INPUT, LL_GPIO_SPEED_FREQ_MEDIUM> G_pin_int;
 
 //typedef Delay_tim<TIM::TIM_3> G_delay;
-//#define DELAY_MS(ms) G_delay::wait_ms(ms)
-//#define DELAY_US(us) G_delay::wait_us(us)
+#define DELAY_MS(ms) g_Delay::wait_ms(ms)
+#define DELAY_US(us) g_Delay::wait_us(us)
 
 typedef Pin<PORTB, 3, LL_GPIO_MODE_OUTPUT, LL_GPIO_SPEED_FREQ_HIGH> Fram_cs_pin;
 typedef Hw_spi<SPI2_BASE, Af_pin<PORTB, 15>, Af_pin<PORTB, 14>, Af_pin<PORTB, 13>> Fram_spi;
 typedef ic_mb85<MB85RS256_SIZE, Fram_spi, Fram_cs_pin> G_fram;
 
-#include "kx132_ic.h"
+#include "ais2ih.h"
 #include "l3gd20h_ic.h"
 #include "ads131_ic.h"
 //#include "mmc5983_ic.h"
 
 typedef Hw_spi<SPI1_BASE, Af_pin<PORTA, 6, LL_GPIO_AF_5>, Af_pin<PORTA, 7, LL_GPIO_AF_5>, Af_pin<PORTA, 5, LL_GPIO_AF_5>> Shared_spi;
-typedef Kx132_ic<Shared_spi, Pin<PORTA, 3, LL_GPIO_MODE_OUTPUT>> Kx132;
+typedef Ais2ih_ic<Shared_spi, Pin<PORTA, 3, LL_GPIO_MODE_OUTPUT>> Ais2ih;
 typedef L3gd20h_ic<Shared_spi, Pin<PORTA, 4, LL_GPIO_MODE_OUTPUT>> L3gd20h;
 //typedef Mmc5983_ic<Shared_spi, Pin<PORTB, 1, LL_GPIO_MODE_OUTPUT>> Mmc5983;
 // Ïèíû äëÿ ÀÖÏ
@@ -126,7 +126,7 @@ public:
     }
 };
 
-extern Kx132 g_axel;
+extern Ais2ih g_axel;
 extern L3gd20h g_gyro;
 extern Mag g_mag;
 
@@ -138,5 +138,7 @@ Vec callibrate(Vec Data, Cal calib);
 float predict(float *abc, float *data, float S_x[5], int N);
 void S_X(float S_x[5], int N);
 float modul(Vec a);
+
+void run_aps(Vec& axel, Vec& mag, Vec& gyro);
 
 #endif /* MAIN_H_INCLUDED */

@@ -157,24 +157,37 @@ void read_cal_and_settings()
     if (isnan(settings.K_delta)) settings.K_delta = 2.5;
 }
 
-extern "C" void EXTI0_IRQHandler()
+static uint16_t i_filter = 0;
+
+//extern "C" void EXTI0_IRQHandler()
+void run_aps(Vec& axel, Vec& mag, Vec& gyro)
 {
-    static uint16_t i_filter = 0;
-    N = settings.N;
-    K = settings.K;
-    K_predict = settings.K_predict;
-    MA_WINDOW_SIZE = settings.MA_WINDOW_SIZE;
-    MLD_WINDOW_SIZE = settings.MLD_WINDOW_SIZE;
-    WMIN = settings.W_MIN;// rad/c
-    WMAX = settings.W_MAX;// rad/c
-    APS_DELTA = settings.APS_DELTA;
-    history_angle = settings.history_angle;
+//    static uint16_t i_filter = 0;
+//    N = settings.N;
+//    K = settings.K;
+//    K_predict = settings.K_predict;
+//    MA_WINDOW_SIZE = settings.MA_WINDOW_SIZE;
+//    MLD_WINDOW_SIZE = settings.MLD_WINDOW_SIZE;
+//    WMIN = settings.W_MIN;// rad/c
+//    WMAX = settings.W_MAX;// rad/c
+//    APS_DELTA = settings.APS_DELTA;
+//    history_angle = settings.history_angle;
+
+    N = 128;
+    K = 128;
+    K_predict = 0.5f;
+    MA_WINDOW_SIZE = 32;
+    MLD_WINDOW_SIZE = 32;
+    WMIN = 3.14f;// rad/c
+    WMAX = 18.84f;// rad/c
+    APS_DELTA = M_PI / 360.0f;
+    history_angle = (20.0f * M_PI) / 360.0f;
 
 ////    if((bExtADCReady)&&(device_state != STATE_IDLE))
     {
-        auto mag = g_mag.read_xyz();
-        auto axel = g_axel.read_xyz();
-        auto gyro = g_gyro.read_xyz();
+//        auto mag = g_mag.read_xyz();
+//        auto axel = g_axel.read_xyz();
+//        auto gyro = g_gyro.read_xyz();
 
         //скользящее среднее
         //вычитаем  значение   i ячейки массива окна из суммы всех значений окна скользящего среднего
@@ -183,9 +196,13 @@ extern "C" void EXTI0_IRQHandler()
         W_Summa  = vctr_diff(W_Summa, W_Data[i_filter]);
 
         //обновляем i ячейку массива окна скользящего среднего
-        G_Data[i_filter] = {(float)axel.a_x, (float)axel.a_y, (float)axel.a_z}; //G_raw;
-        M_Data[i_filter] = {(float)mag.X, (float)mag.Y, (float)mag.Z}; //M_raw;
-        W_Data[i_filter] = {(float)gyro.w_x, (float)gyro.w_y, (float)gyro.w_z}; //W_raw;
+//        G_Data[i_filter] = {(float)axel.a_x, (float)axel.a_y, (float)axel.a_z}; //G_raw;
+//        M_Data[i_filter] = {(float)mag.X, (float)mag.Y, (float)mag.Z}; //M_raw;
+//        W_Data[i_filter] = {(float)gyro.w_x, (float)gyro.w_y, (float)gyro.w_z}; //W_raw;
+        G_Data[i_filter] = axel; //{(float)axel.X, (float)axel.Y, (float)axel.Z}; //G_raw;
+        M_Data[i_filter] = mag; //{(float)mag.X, (float)mag.Y, (float)mag.Z}; //M_raw;
+        W_Data[i_filter] = gyro; //{(float)gyro.X, (float)gyro.Y, (float)gyro.Z}; //W_raw;
+
 
         // заносим сырые  G M
         G_Summa = vctr_summ(G_Summa, G_Data[i_filter]);
@@ -206,8 +223,8 @@ extern "C" void EXTI0_IRQHandler()
             //окончательные калибровки
             //теперь вычитаем offset и умножаем на матрицу, где главная диагональ - это масштабы осей,
             //XY=YX,XZ=ZX,ZY=YZ - малые диагонали, отвечающие за неортогонaльность осей.
-            G = callibrate(G, G_offset_sens);
-            M = callibrate(M, M_offset_sens);
+///            G = callibrate(G, G_offset_sens);
+///            M = callibrate(M, M_offset_sens);
             W = callibrate(W, W_offset_sens);
 
             W_g = W.Z;

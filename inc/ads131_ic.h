@@ -161,7 +161,7 @@ private:
         // HSI включен по умолчанию после сброса, поэтому дополнительно его включать не нужно.
         LL_RCC_ConfigMCO(LL_RCC_MCO1SOURCE_HSI, LL_RCC_MCO1_DIV_2);
     }
-
+public:
     void spi_init()
     {
         // 1. Включить тактирование SPI1 и GPIO
@@ -195,7 +195,7 @@ private:
         SPI_InitStruct.ClockPolarity = LL_SPI_POLARITY_LOW;
         SPI_InitStruct.ClockPhase = LL_SPI_PHASE_2EDGE; // CPHA = 1
         SPI_InitStruct.NSS = LL_SPI_NSS_SOFT;
-        SPI_InitStruct.BaudRate = LL_SPI_BAUDRATEPRESCALER_DIV16; // Выберите подходящий делитель
+        SPI_InitStruct.BaudRate = LL_SPI_BAUDRATEPRESCALER_DIV32; // Выберите подходящий делитель
         SPI_InitStruct.BitOrder = LL_SPI_MSB_FIRST;
 
         LL_SPI_SetRxFIFOThreshold(SPI1, LL_SPI_RX_FIFO_TH_QUARTER);
@@ -205,7 +205,7 @@ private:
         // 4. Включить SPI
         LL_SPI_Enable(SPI1);
     }
-
+private:
     void exti_init()
     {
         // 1. Включить тактирование SYSCFG
