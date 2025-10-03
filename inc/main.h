@@ -47,7 +47,7 @@ typedef ic_mb85<MB85RS256_SIZE, Fram_spi, Fram_cs_pin> G_fram;
 
 typedef Hw_spi<SPI1_BASE, Af_pin<PORTA, 6, LL_GPIO_AF_5>, Af_pin<PORTA, 7, LL_GPIO_AF_5>, Af_pin<PORTA, 5, LL_GPIO_AF_5>> Shared_spi;
 typedef Ais2ih_ic<Shared_spi, Pin<PORTA, 3, LL_GPIO_MODE_OUTPUT>> Ais2ih;
-typedef L3gd20h_ic<Shared_spi, Pin<PORTA, 4, LL_GPIO_MODE_OUTPUT>> L3gd20h;
+typedef L3gd20h_ic<Shared_spi, Pin<PORTA, 1, LL_GPIO_MODE_OUTPUT>> L3gd20h;
 //typedef Mmc5983_ic<Shared_spi, Pin<PORTB, 1, LL_GPIO_MODE_OUTPUT>> Mmc5983;
 // Пины для АЦП
 // CS - Output

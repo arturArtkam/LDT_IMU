@@ -167,7 +167,7 @@ public:
         Cs_pin::hi();
     }
 
-    uint8_t read_reg_8b(uint8_t addr)
+    uint8_t read_reg(uint8_t addr)
     {
         uint8_t data_from_reg = 0;
 
@@ -243,30 +243,22 @@ public:
 
     bool check_whoiam()
     {
-        return read_reg_8b(AIS_WHO_AM_I) == 0x44;
+        return read_reg(AIS_WHO_AM_I) == 0x44;
     }
     #pragma GCC diagnostic push
     #pragma GCC diagnostic ignored "-Wpedantic"
-	bool init()	{		ctrl1_t c1 = {.lpmode = 0, .mode = AIS_MODE_HI, .odr = ODR_1600_200HZ};		write_reg(AIS_CTRL1, *(uint8_t*) &c1);		write_reg(AIS_CTRL2, CTRL2_CS_PU_DISC|CTRL2_BDU|CTRL2_IF_ADD_INC|CTRL2_I2C_DISABLE);		ctrl6_t c6 = {.reserv = 0, .lowNoise = 1, .fds = 0, .fs = FS_8g, .bw = BW_ODR_DIV_10};		write_reg(AIS_CTRL6, *(uint8_t*) &c6);		return check_whoiam();	}
-    #pragma GCC diagnostic pop
-	int8_t read_T(void)	{		int8_t r = read_reg_8b(AIS_OUT_T);		return 25 + r;	}
-
-    auto read_xyz()
+    bool init()
     {
-        Xyz_data  out{};
+        ctrl1_t c1 = {.lpmode = 0, .mode = AIS_MODE_HI, .odr = ODR_1600_200HZ};
+        write_reg(AIS_CTRL1, *(uint8_t*) &c1);
+        write_reg(AIS_CTRL2, CTRL2_CS_PU_DISC|CTRL2_BDU|CTRL2_IF_ADD_INC|CTRL2_I2C_DISABLE);
+        ctrl6_t c6 = {.reserv = 0, .lowNoise = 1, .fds = 0, .fs = FS_8g, .bw = BW_ODR_DIV_10};
+        write_reg(AIS_CTRL6, *(uint8_t*) &c6);
 
-        out.a_x = read_reg_16b(AIS_OUT_X_L);
-        out.a_y = read_reg_16b(AIS_OUT_Y_L);
-        out.a_z = read_reg_16b(AIS_OUT_Z_L);
-
-        return out;
+        return check_whoiam();
     }
-
-//    struct AccelData {
-//    int16_t x;
-//    int16_t y;
-//    int16_t z;
-//};
+    #pragma GCC diagnostic pop
+	int8_t read_T(void)	{		int8_t r = read_reg(AIS_OUT_T);		return 25 + r;	}
 
     void read_all_axes(Xyz_data* data)
     {

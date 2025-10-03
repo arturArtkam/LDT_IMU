@@ -38,17 +38,20 @@ struct Cal G_offset_sens = { 3909340, 3912131, 3944069, 1, 0, 0, 0, 1, 0, 0, 0, 
 struct Set settings;
 //углы
 float angle_aps, angle_zen, angle_azm, angle_aps_m, MTF, MTF_m_p, start_APS = 0;
-float angle_zen_deg, angle_aps_deg, angle_azm_deg, angle_aps_m_deg, MTF_deg;
+volatile float angle_zen_deg, angle_aps_deg, angle_azm_deg, angle_aps_m_deg, MTF_deg;
 
 //для следящего алгоритма и СЛО
 float G_modul, M_modul, W_modul;
 float omega;
-float g_modul_buff[32], m_modul_buff[32], w_modul_buff[32], slo_modul_g, slo_modul_m, slo_modul_w;//для СЛО
+float g_modul_buff[32], m_modul_buff[32], w_modul_buff[32];//для СЛО
+volatile float slo_modul_g;
+float slo_modul_m;
+float slo_modul_w;
 float MTF_buff[128];//буфер для следящего алгоритма
 float abc[3] = {0.0f};//коэфф. аппрох. полинома 2го порядка abc[0]*х*х + abc[1]*х + abc[2]
 //float delta = PI / 180; //вилка - 1 градус
 float history_angle = (20 * M_PI) / 180; //угловая величина буфера аппрохимации
-float prediction;// для предсказанного значения
+volatile float prediction;// для предсказанного значения
 int N = 128, K = 128;
 float K_predict = 0.5;
 extern float S_x[130][5];//предварительно посчитанные коэфф для прогноза

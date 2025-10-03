@@ -303,6 +303,51 @@ void AddSyncFrameReadRegsADC(AdcType& adc, ComType& com)
     adc.AddSyncFrameUserCmd(2, callback);
 }
 
+/**
+ * @brief Безопасно отключает модуль SPI, дожидаясь завершения всех операций.
+ */
+void spi_safe_disable(SPI_TypeDef* SPIx)
+{
+    // Ждем, пока последний байт не будет передан
+    while (!LL_SPI_IsActiveFlag_TXE(SPIx));
+    // Ждем, пока шина не освободится
+    while (LL_SPI_IsActiveFlag_BSY(SPIx));
+    // Отключаем SPI
+    LL_SPI_Disable(SPIx);
+}
+
+/**
+ * @brief Настраивает SPI для работы с акселерометром AIS2IH.
+ */
+void setup_spi_for_accelerometer()
+{
+    // 1. Безопасно отключаем SPI
+    spi_safe_disable(SPI1);
+
+    // 2. Меняем конфигурацию
+    LL_SPI_SetClockPolarity(SPI1, LL_SPI_POLARITY_HIGH); // CPOL = 1
+    LL_SPI_SetClockPhase(SPI1, LL_SPI_PHASE_2EDGE);      // CPHA = 1
+
+    // 3. Включаем SPI
+    LL_SPI_Enable(SPI1);
+}
+
+/**
+ * @brief Настраивает SPI для работы с АЦП ADS131M08.
+ */
+void setup_spi_for_adc()
+{
+    // 1. Безопасно отключаем SPI
+    spi_safe_disable(SPI1);
+
+    // 2. Меняем конфигурацию
+    LL_SPI_SetClockPolarity(SPI1, LL_SPI_POLARITY_LOW);  // CPOL = 0
+    LL_SPI_SetClockPhase(SPI1, LL_SPI_PHASE_2EDGE);      // CPHA = 0
+
+    // 3. Включаем SPI
+    LL_SPI_Enable(SPI1);
+}
+
 typedef Pin<PORTB, 2, LL_GPIO_MODE_OUTPUT, LL_GPIO_SPEED_FREQ_HIGH, LL_GPIO_OUTPUT_PUSHPULL> SR_pin;
 volatile int32_t hmc_plus[3] = {0}, hmc_minus[3] = {0};
 volatile int32_t hmc[3] = {0}, offset[3] = {0};
@@ -337,21 +382,21 @@ int main()
     SPI1->CR1 &= ~SPI_CR1_SPE;
 //    LL_SPI_SetClockPhase(SPI1, LL_SPI_PHASE_1EDGE);
 //    LL_SPI_SetClockPolarity(SPI1, LL_SPI_POLARITY_HIGH);
-        // 3. Настройка параметров SPI
-        LL_SPI_InitTypeDef SPI_InitStruct;
-        LL_SPI_StructInit(&SPI_InitStruct);
-        SPI_InitStruct.TransferDirection = LL_SPI_FULL_DUPLEX;
-        SPI_InitStruct.Mode = LL_SPI_MODE_MASTER;
-        SPI_InitStruct.DataWidth = LL_SPI_DATAWIDTH_8BIT;
-        SPI_InitStruct.ClockPolarity = LL_SPI_POLARITY_HIGH;
-        SPI_InitStruct.ClockPhase = LL_SPI_PHASE_2EDGE; // CPHA = 1
-        SPI_InitStruct.NSS = LL_SPI_NSS_SOFT;
-        SPI_InitStruct.BaudRate = LL_SPI_BAUDRATEPRESCALER_DIV128; // Выберите подходящий делитель
-        SPI_InitStruct.BitOrder = LL_SPI_MSB_FIRST;
+    // 3. Настройка параметров SPI
+    LL_SPI_InitTypeDef SPI_InitStruct;
+    LL_SPI_StructInit(&SPI_InitStruct);
+    SPI_InitStruct.TransferDirection = LL_SPI_FULL_DUPLEX;
+    SPI_InitStruct.Mode = LL_SPI_MODE_MASTER;
+    SPI_InitStruct.DataWidth = LL_SPI_DATAWIDTH_8BIT;
+    SPI_InitStruct.ClockPolarity = LL_SPI_POLARITY_HIGH;
+    SPI_InitStruct.ClockPhase = LL_SPI_PHASE_2EDGE; // CPHA = 1
+    SPI_InitStruct.NSS = LL_SPI_NSS_SOFT;
+    SPI_InitStruct.BaudRate = LL_SPI_BAUDRATEPRESCALER_DIV128; // Выберите подходящий делитель
+    SPI_InitStruct.BitOrder = LL_SPI_MSB_FIRST;
 
-        LL_SPI_SetRxFIFOThreshold(SPI1, LL_SPI_RX_FIFO_TH_QUARTER);
+    LL_SPI_SetRxFIFOThreshold(SPI1, LL_SPI_RX_FIFO_TH_QUARTER);
 
-        LL_SPI_Init(SPI1, &SPI_InitStruct);
+    LL_SPI_Init(SPI1, &SPI_InitStruct);
     SPI1->CR1 |= SPI_CR1_SPE;
 
     if (!g_axel.init())
@@ -363,24 +408,20 @@ int main()
         }
     }
 
-    while (!g_axel.check_whoiam())
-    {
-        G_red_led::toggle();
-        DELAY_MS(25);
-    }
+//    while (!g_axel.check_whoiam())
+//    {
+//        G_red_led::toggle();
+//        DELAY_MS(25);
+//    }
 
-//    g_axel.norm_mode_2g_50hz();
-//    if (!g_gyro.check_whoiam())
-//    {
-//        app_log::warning("Gyroscope ini error!");
-//    }
-//    else
-//    {
-//        app_log::warning("Gyroscope OK");
-//    }
-//    (void) res;
-//    Gyro::init();
-//    Mag::init();
+    if (!g_gyro.init())
+    {
+        while (1)
+        {
+            G_red_led::toggle();
+            DELAY_MS(25);
+        }
+    }
 
     // Период калибровки в сэмплах (должен быть степенью двойки)
     constexpr uint32_t CALIBRATION_PERIOD_SAMPLES = 512;
@@ -406,56 +447,63 @@ int main()
     while (1)
     {
 
-//        if (ads131.checkDataReady())
-//        {
-//            ads131.data_ready_handler();
+        if (ads131.checkDataReady())
+        {
+            setup_spi_for_adc();
+            ads131.data_ready_handler();
+            setup_spi_for_accelerometer();
+
+            if ((cnt & CALIBRATION_PERIOD_MASK) == SET_PULSE)
+            {
+                SR_pin::hi();
+            }
+            else if ((cnt & CALIBRATION_PERIOD_MASK) == MEASURE_PLUS)
+            {
+                hmc_plus[0] = ads131.data[HMC_ADC_CHANNEL_X];
+                hmc_plus[1] = ads131.data[HMC_ADC_CHANNEL_Y];
+                hmc_plus[2] = ads131.data[HMC_ADC_CHANNEL_Z];
+            }
+            else if ((cnt & CALIBRATION_PERIOD_MASK) == RESET_PULSE)
+            {
+                SR_pin::lo();
+            }
+            else if ((cnt & CALIBRATION_PERIOD_MASK) == MEASURE_MINUS_AND_CALCULATE)
+            {
+                hmc_minus[0] = -ads131.data[HMC_ADC_CHANNEL_X];
+                hmc_minus[1] = -ads131.data[HMC_ADC_CHANNEL_Y];
+                hmc_minus[2] = -ads131.data[HMC_ADC_CHANNEL_Z];
+                // Деление на 2 заменено на сдвиг для производительности
+                offset[0] = (hmc_plus[0] - hmc_minus[0]) >> 1;
+                offset[1] = (hmc_plus[1] - hmc_minus[1]) >> 1;
+                offset[2] = (hmc_plus[2] - hmc_minus[2]) >> 1;
+            }
+            else
+            {
+                hmc[0] = ads131.data[HMC_ADC_CHANNEL_X] - offset[0];
+                hmc[1] = ads131.data[HMC_ADC_CHANNEL_Y] - offset[1];
+                hmc[2] = ads131.data[HMC_ADC_CHANNEL_Z] - offset[2];
+
+                mag = {(float)hmc[0], (float)hmc[1], (float)hmc[2]};
+
+//                SPI1->CR1 &= ~SPI_CR1_SPE;
+//                SPI1->SR = 0;
+//                LL_SPI_SetClockPolarity(SPI1, LL_SPI_POLARITY_HIGH);
+//                SPI1->CR1 |= SPI_CR1_SPE;
 //
-//            if ((cnt & CALIBRATION_PERIOD_MASK) == SET_PULSE)
-//            {
-//                SR_pin::hi();
-//            }
-//            else if ((cnt & CALIBRATION_PERIOD_MASK) == MEASURE_PLUS)
-//            {
-//                hmc_plus[0] = ads131.data[HMC_ADC_CHANNEL_X];
-//                hmc_plus[1] = ads131.data[HMC_ADC_CHANNEL_Y];
-//                hmc_plus[2] = ads131.data[HMC_ADC_CHANNEL_Z];
-//            }
-//            else if ((cnt & CALIBRATION_PERIOD_MASK) == RESET_PULSE)
-//            {
-//                SR_pin::lo();
-//            }
-//            else if ((cnt & CALIBRATION_PERIOD_MASK) == MEASURE_MINUS_AND_CALCULATE)
-//            {
-//                hmc_minus[0] = -ads131.data[HMC_ADC_CHANNEL_X];
-//                hmc_minus[1] = -ads131.data[HMC_ADC_CHANNEL_Y];
-//                hmc_minus[2] = -ads131.data[HMC_ADC_CHANNEL_Z];
-//                // Деление на 2 заменено на сдвиг для производительности
-//                offset[0] = (hmc_plus[0] - hmc_minus[0]) / 2;
-//                offset[1] = (hmc_plus[1] - hmc_minus[1]) / 2;
-//                offset[2] = (hmc_plus[2] - hmc_minus[2]) / 2;
-//            }
-//            else
-//            {
-//                hmc[0] = ads131.data[HMC_ADC_CHANNEL_X] - offset[0];
-//                hmc[1] = ads131.data[HMC_ADC_CHANNEL_Y] - offset[1];
-//                hmc[2] = ads131.data[HMC_ADC_CHANNEL_Z] - offset[2];
-//
-//                mag = {(float)hmc[0], (float)hmc[1], (float)hmc[2]};
-//
-////                SPI1->CR1 &= ~SPI_CR1_SPE;
-////                SPI1->SR = 0;
-////                LL_SPI_SetClockPolarity(SPI1, LL_SPI_POLARITY_HIGH);
-////                SPI1->CR1 |= SPI_CR1_SPE;
-////
-////                while (!g_axel.check_whoiam())
-////                {
-////                    while (1)
-////                    {
-////                        G_red_led::toggle();
-////                        DELAY_MS(25);
-////                    }
-////                }
-//
+//                while (!g_axel.check_whoiam())
+//                {
+//                    while (1)
+//                    {
+//                        G_red_led::toggle();
+//                        DELAY_MS(25);
+//                    }
+//                }
+
+                Ais2ih::Xyz_data a_res = {0, 0, 0};//g_axel.read_xyz();
+                g_axel.read_all_axes(&a_res);
+                axel = {(float)a_res.a_x, (float)a_res.a_y, (float)a_res.a_z};
+//                print(dbg_uart, mag.X, ", ", mag.Y, ", ", mag.Z, ", ", axel.X, ", ", axel.Y, ", ", axel.Z);
+
 //                if ((cnt & 7) == 0)
 //                {
 //
@@ -463,20 +511,22 @@ int main()
 //
 //                axel = {(float)res.a_x, (float)res.a_y, (float)res.a_z}; // {0.0f, 0.0f, 0.0f}; //{(float)res.a_x, (float)res.a_y, (float)res.a_z};
 //                }
-//                Vec gyro;
-////                run_aps(axel, mag, gyro);
-//            }
-//
-//            if ((cnt > 3) && ((cnt & 0x1FF) == 0)) print(dbg_uart, mag.X, ", ", mag.Y, ", ", mag.Z, ", ", axel.X, ", ", axel.Y, ", ", axel.Z);
-//            cnt++;
-//        }
+                L3gd20h::Xyz_data w_res = {0, 0, 0};
+                g_gyro.read_all_axes(&w_res);
+                Vec gyro = {(float)w_res.w_x, (float)w_res.w_y, (float)w_res.w_z};
+                run_aps(axel, mag, gyro);
+            }
 
-        Ais2ih::Xyz_data res = {0, 0, 0};//g_axel.read_xyz();
-        g_axel.read_all_axes(&res);
-        axel = {(float)res.a_x, (float)res.a_y, (float)res.a_z};
-//        print(dbg_uart, mag.X, ", ", mag.Y, ", ", mag.Z, ", ", axel.X, ", ", axel.Y, ", ", axel.Z);
-        print(dbg_uart, axel.X, ", ", axel.Y, ", ", axel.Z);
-        DELAY_MS(100);
+            if ((cnt > 3) && ((cnt & 0x1FF) == 0)) print(dbg_uart, mag.X, ", ", mag.Y, ", ", mag.Z, ", ", axel.X, ", ", axel.Y, ", ", axel.Z);
+            cnt++;
+        }
+
+//        Ais2ih::Xyz_data res = {0, 0, 0};//g_axel.read_xyz();
+//        g_axel.read_all_axes(&res);
+//        axel = {(float)res.a_x, (float)res.a_y, (float)res.a_z};
+////        print(dbg_uart, mag.X, ", ", mag.Y, ", ", mag.Z, ", ", axel.X, ", ", axel.Y, ", ", axel.Z);
+//        print(dbg_uart, axel.X, ", ", axel.Y, ", ", axel.Z);
+//        DELAY_MS(100);
 
 
 ////        Kx132::Xyz_data res = g_axel.read_xyz();
