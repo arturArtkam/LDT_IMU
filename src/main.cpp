@@ -136,7 +136,6 @@ Uart_dbg<UART1, Af_pin<PORTA, 9, LL_GPIO_AF_7>> dbg_uart;
 ProjectLogger g_logger(dbg_uart);
 Ais2ih g_axel;
 L3gd20h g_gyro;
-Mag g_mag;
 Ads ads131;
 
 float S_x[130][5] = {0.0f, 0.0f};

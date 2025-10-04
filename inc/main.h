@@ -20,6 +20,8 @@ typedef Pin<PORTB, 11, LL_GPIO_MODE_OUTPUT, LL_GPIO_SPEED_FREQ_MEDIUM> G_pin_int
 #include "uart_ll_g4xx.h"
 #include "delay.h"
 #include "mb85_ic.h"
+#include "linalg.h"
+#include "cal_and_predict.h"
 
 #define bitRead(value, bit) (((value) >> (bit)) & 0x01)
 #define bitSet(value, bit) ((value) |= (1UL << (bit)))
@@ -49,6 +51,7 @@ typedef Hw_spi<SPI1_BASE, Af_pin<PORTA, 6, LL_GPIO_AF_5>, Af_pin<PORTA, 7, LL_GP
 typedef Ais2ih_ic<Shared_spi, Pin<PORTA, 3, LL_GPIO_MODE_OUTPUT>> Ais2ih;
 typedef L3gd20h_ic<Shared_spi, Pin<PORTA, 1, LL_GPIO_MODE_OUTPUT>> L3gd20h;
 //typedef Mmc5983_ic<Shared_spi, Pin<PORTB, 1, LL_GPIO_MODE_OUTPUT>> Mmc5983;
+
 // Пины для АЦП
 // CS - Output
 using AdcCsPin = Pin<PORTB, 0, LL_GPIO_MODE_OUTPUT, LL_GPIO_SPEED_FREQ_HIGH, LL_GPIO_OUTPUT_PUSHPULL>;
@@ -64,41 +67,21 @@ using AdcSyncPin = Pin<PORTB, 1, LL_GPIO_MODE_OUTPUT, LL_GPIO_SPEED_FREQ_HIGH, L
 // Эти пины должны быть настроены в режиме Alternate Function AF5
 using Ads = ads131_t<AdcCsPin, AdcRdyPin, AdcSyncPin>;
 
-struct Vec
-{
-    float X;
-    float Y;
-    float Z;
-};
-
-struct Matrix_3_3
-{
-    float XX; float YX; float ZX;
-    float XY; float YY; float ZY;
-    float XZ; float YZ; float ZZ;
-};
-
-struct Cal
-{
-    struct Vec offset;
-    struct Matrix_3_3 sens;
-};
-
 struct Set
 {
-   uint32_t MA_WINDOW_SIZE; //32
-   uint32_t MLD_WINDOW_SIZE; //32
-   uint32_t N; //128
-   uint32_t K; //128
-   uint32_t auto_delta; //1
-   uint32_t INTERRUPT_BY_ANGLE_PATH; // 0
-   uint16_t MOVEMENT_CMP_VALUE; //300
-   float W_MIN; //3.14
-   float W_MAX; //18.84
-   float K_predict; //0.5
-   float APS_DELTA; //PI/360
-   float history_angle; //(20*PI)/180
-   float K_delta; //2.5
+   uint32_t MA_WINDOW_SIZE = 32u;
+   uint32_t MLD_WINDOW_SIZE = 32u;
+   uint32_t N = 128u;
+   uint32_t K = 128u;
+   uint32_t AUTO_DELTA = 1u;
+   uint32_t INTERRUPT_BY_ANGLE_PATH = 0u;
+   uint16_t MOVEMENT_CMP_VALUE = 300u;
+   float W_MIN = 3.14f; // рад/с
+   float W_MAX = 18.84f; // рад/с
+   float K_PREDICT = 0.5f;
+   float APS_DELTA = static_cast<float>(M_PI) / 360.0f;
+   float HISTORY_ANGLE = (20.0f * static_cast<float>(M_PI)) / 180.0f;
+   float K_delta = 2.5f;
 };
 
 enum Aps_state
@@ -116,28 +99,8 @@ enum Fram_markup
     SETTINGS_ADDR = G_OFFSET_ADDR + 3 * sizeof(Cal),
 };
 
-class Mag
-{
-public:
-    Vec read_xyz()
-    {
-        Vec res = {0, 0, 0};
-        return res;
-    }
-};
-
 extern Ais2ih g_axel;
 extern L3gd20h g_gyro;
-extern Mag g_mag;
-
-Vec vctr_summ(Vec a, Vec b);
-Vec vctr_diff(Vec a, Vec b);
-Vec vctr_mltp(Vec a, Vec b);
-Vec vctr_mltp_n(float a, Vec b);
-Vec callibrate(Vec Data, Cal calib);
-float predict(float *abc, float *data, float S_x[5], int N);
-void S_X(float S_x[5], int N);
-float modul(Vec a);
 
 void run_aps(Vec& axel, Vec& mag, Vec& gyro);
 
