@@ -1,6 +1,14 @@
 #include "main.h"
 #include <math.h>
 
+constexpr size_t MA_BUFFER_SIZE = 32;
+constexpr uint32_t PULSE_WIDTH = 3;//ширина импульса в мс
+constexpr uint32_t BETH_PULSE_DELAY = 32 ;//время между импульсами
+constexpr size_t PREDICTION_BUFFER_SIZE = 128;
+
+//static_assert((MA_WINDOW_SIZE > 0) && ((MA_WINDOW_SIZE & (MA_WINDOW_SIZE - 1)) == 0),
+//              "MA_WINDOW_SIZE must be a power of two for bitwise operations to work.");
+
 //float Gx, Gy, Gz, Bx, By, Bz, Wx, Wy, Wz;
 //float W_g;
 //float Wg_offset = 0;
@@ -24,7 +32,7 @@ float aps_delta = M_PI / 360; // - 1 градус (с какой точностью определяется моме
 // для сырых, после скользящего среднего и калиброванных данных и скользящего среднего
 //int Wxyz[3];
 //struct Vec G_ma, M_ma, W_ma, G, M, W ;
-struct Vec G_Summa = {0, 0, 0}, M_Summa = {0, 0, 0}, W_Summa = {0, 0, 0}, G_Data[32], M_Data[32], W_Data[32] ;
+struct Vec G_Summa = {0, 0, 0}, M_Summa = {0, 0, 0}, W_Summa = {0, 0, 0}, G_Data[MA_BUFFER_SIZE], M_Data[MA_BUFFER_SIZE], W_Data[MA_BUFFER_SIZE] ;
 
 //для калибровок
 struct Cal G_offset_sens = { 3909340, 3912131, 3944069, 1, 0, 0, 0, 1, 0, 0, 0, 1 },
@@ -43,8 +51,8 @@ struct Set settings;
 //для следящего алгоритма и СЛО
 //float G_modul, M_modul, W_modul;
 //float omega;
-float g_modul_buff[32], m_modul_buff[32], w_modul_buff[32];//для СЛО
-volatile float slo_modul_g;
+float g_modul_buff[MA_BUFFER_SIZE], m_modul_buff[MA_BUFFER_SIZE], w_modul_buff[MA_BUFFER_SIZE];//для СЛО
+float slo_modul_g;
 float slo_modul_m;
 float slo_modul_w;
 //float MTF_buff[128];//буфер для следящего алгоритма
@@ -64,8 +72,6 @@ float aps_point_arr[16] = {0.0f};
 float rot = 1;
 //volatile uint32_t  tim = 0, pulse = 0, beth_pulse_delay_tim = 0, no_mov_delay_tim = 0;
 //volatile float angle_path_wg = 0;
-constexpr uint32_t PULSE_WIDTH = 3;//ширина импульса в мс
-constexpr uint32_t BETH_PULSE_DELAY = 32 ;//время между импульсами
 //volatile bool start_circle;
 float MA_delay = 0;
 //volatile float delay = 0;
@@ -97,16 +103,16 @@ void variables_reset(void)
 //    next_Tx_N = 0;
 }
 
-constexpr size_t MA_BUFFER_SIZE = 32;
-constexpr size_t MLD_BUFFER_SIZE = 32;
 
-// Структура для хранения состояния обработки ОДНОГО сенсора
-struct SensorProcessingState {
-    Vec ma_sum = {0, 0, 0};
-    Vec ma_buffer[MA_BUFFER_SIZE];
-    float mld_buffer[MLD_BUFFER_SIZE];
-    float mld_output = 0;
-};
+//constexpr size_t MLD_BUFFER_SIZE = 32;
+//
+//// Структура для хранения состояния обработки ОДНОГО сенсора
+//struct SensorProcessingState {
+//    Vec ma_sum = {0, 0, 0};
+//    Vec ma_buffer[MA_BUFFER_SIZE];
+//    float mld_buffer[MLD_BUFFER_SIZE];
+//    float mld_output = 0;
+//};
 
 // Структура для хранения калибровочных коэффициентов
 struct CalibrationData {
@@ -138,7 +144,7 @@ struct CalculatedData {
     volatile float angle_zen_deg = 0.0f, angle_aps_deg = 0.0f, angle_azm_deg = 0.0f, angle_aps_m_deg = 0.0f, MTF_deg = 0.0f;
 };
 
-constexpr size_t PREDICTION_BUFFER_SIZE = 128;
+
 
 struct ApsAlgorithmState {
     // --- Состояние детектора движения ---
@@ -407,7 +413,7 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
             metrics.angle_azm_deg = (metrics.angle_azm * 57.296);
             metrics.MTF_deg = (metrics.MTF * 57.296);
 
-//СЛЕДЯЩИЙ АЛГОРИТМ
+// --- СЛЕДЯЩИЙ АЛГОРИТМ ---
 //Аппроксимирует предыдущие К точек скорректированного MTF (MTF_C) AX2+BX+C
 //и выдает прогноз для текущей точки. К вычисляется таким образом, чтобы
 //в массиве[K] приблизительно одинаковое угловое изменение dFi rad
@@ -444,7 +450,7 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
             if (K > N) K = N - 1;
             // подставляем хвост массива размера К в функцию для прогноза
             aps_state.prediction = predict(abc, &aps_state.mtf_buffer[N - K - 1], S_x[K], K);
-/////конец следящего алгоритма //////////////////////////////////////////////////////////////////////////////////////////////
+// --- конец следящего алгоритма ---
 
             if (AUTO_DELTA == 1)
                 aps_delta = settings.APS_DELTA + fabs(metrics.Wg_1000 * settings.K_delta);
@@ -492,8 +498,7 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
                     aps_point = aps_point_arr[0]; //aps_point - транслируем в uart можно убрать пoсле отладки
                     G_pin_int::hi();
                     G_red_led::hi();
-//------------------------------------------------------------------------------------
-                    // для циклограммы направленного прибора
+                    // ---  для циклограммы направленного прибора ---
 //                    cyclogram_state = TX_DIRECT_MESS;
                     aps_idx_out = aps_state.aps_idx;
                     variables_reset();
@@ -563,7 +568,7 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
                 #ifdef MAX_W_STOP
                     if (beth_pulse_delay_tim <= BETH_PULSE_DELAY)
                     {
-                        apsMMode = APS_COMPLETE;
+                        aps_state.mode = APS_COMPLETE;
 ///                        bitWrite(error_msg, MAX_W_ERR, 1);
                     }
                     else
@@ -613,9 +618,10 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
 //        }// end if STATE_NORMAL
 
 
-        if(i_filter < (MA_WINDOW_SIZE - 1))
-            i_filter++;
-        else i_filter = 0;
+//        if(i_filter < (MA_WINDOW_SIZE - 1))
+//            i_filter++;
+//        else i_filter = 0;
+        i_filter = (i_filter + 1) & (MA_WINDOW_SIZE - 1);
 
     } //end if not idle
 
