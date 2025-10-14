@@ -166,7 +166,7 @@ public:
 
         // 1. Отправляем адрес первого регистра (OUTX_L) с флагом чтения
         while (!LL_SPI_IsActiveFlag_TXE(SPI1));
-        LL_SPI_TransmitData8(SPI1, (0x80 | AIS_OUT_X_L));
+        LL_SPI_TransmitData8(SPI1, (0x80 | XOUT_L));
         while (!LL_SPI_IsActiveFlag_RXNE(SPI1));
         (void)LL_SPI_ReceiveData8(SPI1); // Холостое чтение
 

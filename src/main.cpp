@@ -28,7 +28,7 @@ void Uart_dbg<uart_n, io_pin>::init(LL_RCC_ClocksTypeDef* rcc_clocks)
 
     _Uart::enable_clocks();
 
-    set_baud(_Uart::USARTn, rcc_clocks->PCLK2_Frequency, 230400);
+    set_baud(_Uart::USARTn, rcc_clocks->PCLK2_Frequency, 9600);
     /* Переводим в полудуплексный режим до включения приемо-передатчика */
     SET_BIT(_Uart::USARTn->CR3, USART_CR3_HDSEL);
     /* Разрешена работа "на передачу" */
@@ -373,6 +373,8 @@ int main()
         S_X(S_x[i], i);
     }
 
+    fill_aps_buff();
+
 //    g_axel.spibus_conf(LL_SPI_POLARITY_HIGH, LL_SPI_PHASE_2EDGE, LL_SPI_BAUDRATEPRESCALER_DIV64);
     ads131.init();
     WakeUp();
@@ -497,10 +499,10 @@ int main()
 //                        DELAY_MS(25);
 //                    }
 //                }
-
+                DELAY_US(10);
                 Ais2ih::Xyz_data a_res = {0, 0, 0};//g_axel.read_xyz();
                 g_axel.read_all_axes(&a_res);
-                axel = {(float)a_res.a_x, (float)a_res.a_y, (float)a_res.a_z};
+                axel = {(float)a_res.a_x, (float)a_res.a_z, (float)a_res.a_y};
 //                print(dbg_uart, mag.X, ", ", mag.Y, ", ", mag.Z, ", ", axel.X, ", ", axel.Y, ", ", axel.Z);
 
 //                if ((cnt & 7) == 0)
@@ -512,7 +514,8 @@ int main()
 //                }
                 L3gd20h::Xyz_data w_res = {0, 0, 0};
                 g_gyro.read_all_axes(&w_res);
-                Vec gyro = {(float)w_res.w_x, (float)w_res.w_y, (float)w_res.w_z};
+                // Ось X гироскопа совпадает с осью Z прибора
+                Vec gyro = {(float)w_res.w_z, (float)w_res.w_y, (float)w_res.w_x};
                 run_aps(axel, mag, gyro);
             }
 

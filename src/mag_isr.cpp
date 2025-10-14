@@ -64,7 +64,7 @@ int N = 128, K = 128;
 float K_predict = 0.5;
 extern float S_x[130][5];//предварительно посчитанные коэфф для прогноза
 float aps_point = 0;
-float aps_point_arr[16] = {0.0f};
+//float aps_point_arr[16] = {0.0f};
 //float G_M_angle = 0;
 //uint16_t aps_idx = 0;
 //float sector = M_PI / 8;
@@ -243,6 +243,17 @@ static CalibrationData callibrations;
 CalculatedData metrics;
 // Состояние основного алгоритма
 ApsAlgorithmState aps_state;
+
+void fill_aps_buff()
+{
+    //вычисляем сразу все 16 угловых положений для выдачи прерывания на измерения
+    // и приводим их значения к интервалу от -PI до PI исключая PI (по правилам atan2)
+    for (int idx = 0; idx < 16; idx++)
+    {
+        aps_state.aps_point_arr[idx] = aps_state.start_APS + idx * -aps_state.rot * M_PI / 8.0f;
+        while (aps_state.aps_point_arr[idx] <= -M_PI) aps_state.aps_point_arr[idx] += 2*M_PI;
+    }
+}
 //extern "C" void EXTI0_IRQHandler()
 void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
 {
@@ -389,7 +400,7 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
             }
 
             /* Расчет MTF (Magnetic Tool Face - Угол установки отклонителя) */
-            metrics.MTF = metrics.angle_aps_m - metrics.G_M_angle;
+            metrics.MTF = metrics.angle_aps_m; // - metrics.G_M_angle;
             /* Нормализация MTF в диапазон (-PI, PI] */
             while (metrics.MTF > M_PI) metrics.MTF -= 2 * M_PI;
             while (metrics.MTF <= -M_PI)  metrics.MTF += 2 * M_PI;
@@ -461,166 +472,175 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
             else
                 K_predict = 0.5;
 
-            aps_state.final_MTF_m_p = (metrics.MTF * (1 - K_predict) + K_predict * aps_state.prediction);
+///            aps_state.final_MTF_m_p = (metrics.MTF * (1 - K_predict) + K_predict * aps_state.prediction);
 
-            /* Ожидание начала нового цикла измерений APS (APS - angular position system) */
-            //выдача команды на прерывание раз в PI/8
-            if (aps_state.mode == APS_READY)
+            aps_state.final_MTF_m_p = metrics.MTF;
+            if ((aps_state.final_MTF_m_p > aps_state.aps_point_arr[aps_state.aps_idx] - aps_delta
+                && aps_state.final_MTF_m_p < aps_state.aps_point_arr[aps_state.aps_idx] + aps_delta)
+                || aps_state.interrupt_by_angle_path == true) //попадание в вилку
             {
-                error_msg = 0x00;
-                error_sector_msg = 0x0000;
-                aps_state.tim = 0;//
-                //для передачи !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-///                i_16_tWg = (int16_t)(W_g * 572.96);
-                /* Если скорость достаточна (вращение) */
-                if (metrics.W_g > WMIN)
-                {
-                    G_pin_int::lo();
-                    G_red_led::lo();
-                    aps_state.mode = APS_WAIT_NEXT_POINT;
-//                    delay = MA_delay; //угловая задержка
-//                    turnStartTime = Now;
-                    aps_state.rot = -1.0; // для макета и новой платы одинаково
-                    aps_state.angle_path_wg = 0;
-                    // старт с произвольного угла
-                    aps_state.start_APS = metrics.MTF;// стартовй угол равен текущему МТФ
-                    //для передачи!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-///                    fApsStartAngle = MTF * rot;
-///                    i_16_tApsStartAngle = (int16_t)(MTF * rot * 572.96);
-                    //вычисляем сразу все 16 угловых положений для выдачи прерывания на измерения
-                    // и приводим их значения к интервалу от -PI до PI исключая PI (по правилам atan2)
-                    for (int idx = 0; idx < 16; idx++)
-                    {
-                        aps_point_arr[idx] = aps_state.start_APS + idx * aps_state.rot * M_PI / 8.0;
-                        while (aps_point_arr[idx] <= -M_PI) aps_point_arr[idx] += 2*M_PI;
-                    }
+                aps_state.aps_idx = (aps_state.aps_idx + 1) & (16 - 1);
+                G_red_led::toggle();
+            }
 
-                    aps_point = aps_point_arr[0]; //aps_point - транслируем в uart можно убрать пoсле отладки
-                    G_pin_int::hi();
-                    G_red_led::hi();
-                    // ---  для циклограммы направленного прибора ---
-//                    cyclogram_state = TX_DIRECT_MESS;
-                    aps_idx_out = aps_state.aps_idx;
-                    variables_reset();
-//------------------------------------------------------------------------------------
-                    aps_state.pulse = 0;//сбрасываем счетчиk
-                    aps_state.aps_idx++;// инкреметируем счетчик массива угловых положений
-                #ifdef MAX_W_STOP
-                    beth_pulse_delay_tim = 0;//время между импульсами- инкрементируем -
-                #endif
-                }//end if(W_g > WMIN)
-                /* Если скорость недостаточна (нет вращения или слишком медленно) */
-                else
-                {
-//------------------------------------------------------------------------------------
-                    // для циклограммы направленного прибора
-                    // ненаправленные измерения
-//                     = TX_NOT_DIRECT_MESS;
-                    variables_reset();
-                    aps_state.mode = APS_COMPLETE;
-//------------------------------------------------------------------------------------
-///                    bitWrite(error_msg, MIN_W_ERR_BIT, 1);
-///                    bitWrite(error_msg, VIBRATION_BIT, bIsMoving);
-                }
-            } /* if (aps_state.mode == APS_READY) */
-            /* Ожидание достижения следующей угловой точки. */
-            else if (aps_state.mode == APS_WAIT_NEXT_POINT)
-            {
-            #ifdef MAX_W_STOP
-                beth_pulse_delay_tim ++;//время между импульсами- инкрементируем -
-            #endif
-                aps_state.pulse++;//длительность импульса на прерывание в мс - инкрементируем- т к цикл составляет 1 мс
-                /*  если счетчик длительности импульса больше ширины выключаем */
-                if (aps_state.pulse > PULSE_WIDTH) //PULSE_WIDTH - длительность импульса на прерывание
-                {
-                    G_pin_int::lo();
-                    G_red_led::lo();
-                }
-                /* не набрали полный круг за 5000 сек */
-                aps_state.tim++;
-                if (aps_state.tim > 5000)
-                {
-                    aps_state.tim = 0;
-                    aps_state.mode = APS_READY;
-//------------------------------------------------------------------------------------
-                    // для циклограммы направленного прибора
-//                    cyclogram_state = RX_SURVEY;
-//------------------------------------------------------------------------------------
-//                    delay = 0;
-///                    bitWrite(error_msg, TIMEOUT_ERR_BIT, 1);
-                }
-
-                aps_state.angle_path_wg += metrics.Wg_1000;  //угловой путь от начала отсчета в радианах (Wg_1000 - угловая скорость рад/милисек)
-                //angle_path_wg += ( w_modul_buff[MLD_WINDOW_SIZE-1] + w_modul_buff[MLD_WINDOW_SIZE-2])/2.0;
-
-                if (aps_state.angle_path_wg > (M_PI / 8 + 4.0 * aps_delta) && settings.INTERRUPT_BY_ANGLE_PATH == 1)
-                {
-                    aps_state.interrupt_by_angle_path = true;//принимаем решение
-                }
-
-                /* Старт с произвольного угла */
-                aps_point = aps_point_arr[aps_state.aps_idx]; //aps_point - транслируем в uart можно убрать пoсле отладки
-
-                if ((aps_state.final_MTF_m_p > aps_point_arr[aps_state.aps_idx] - aps_delta
-                    && aps_state.final_MTF_m_p < aps_point_arr[aps_state.aps_idx] + aps_delta)
-                    || aps_state.interrupt_by_angle_path == true) //попадание в вилку
-                {
-                #ifdef MAX_W_STOP
-                    if (beth_pulse_delay_tim <= BETH_PULSE_DELAY)
-                    {
-                        aps_state.mode = APS_COMPLETE;
-///                        bitWrite(error_msg, MAX_W_ERR, 1);
-                    }
-                    else
-                    {
-                #endif
-                        G_pin_int::hi();
-                        G_red_led::hi();
-//------------------------------------------------------------------------------------
-                        // для циклограммы направленного прибора
-//                        cyclogram_state = TX_DIRECT_MESS;
-                        aps_idx_out = aps_state.aps_idx;
-                        variables_reset();
-//------------------------------------------------------------------------------------
-                        aps_state.pulse = 0;//сбрасываем счетчик времени для импульса прерывания
-///                        bitWrite(error_msg, NOT_REACH_END, 1);
-///                        bitWrite(error_msg, K_PREDIKT_1, (int)(K_predict));
-///                        bitWrite(error_sector_msg, aps_idx, interrupt_by_angle_path);
-                        //aps_arr[aps_idx] = (angle_path_wg-PI/8)/(slo_modul_w);//не выводим 16 значений
-                        //aps_m_arr[aps_idx] = (angle_path_wg-PI/8)/APS_DELTA;
-                        aps_state.interrupt_by_angle_path = false;
-                        aps_state.angle_path_wg = 0;//обнуляем угловой путь в момент прерывания
-                        aps_state.aps_idx++;// инкреметируем счетчик массива угловых положений
-                        /* Cделан полный оборот, 16 импульсов выдано */
-                        if (aps_state.aps_idx == 16)//если сделали полный оборот
-                        {
-//                            aps_m_arr[16] = aps_delta * 57.296;//можно убрать пoсле отладки
-///                            bitWrite(error_msg, NOT_REACH_END, 0);
-                            aps_state.aps_idx = 0;
-                            aps_state.mode = APS_COMPLETE;
-
-                            G_pin_int::lo(); //GPIO_WritePin(PIN_INTERRUPT, 0);
-                            G_red_led::lo(); //GPIO_WritePin(LED_2, 0);
-                        }
-                #ifdef MAX_W_STOP //max_W_stop
-                    }
-                    beth_pulse_delay_tim = 0;
-                #endif
-                }
-            }//end if APS_WAIT_NEXT_POINT
-
-//------------------------------------------------------------------------------------
-// для циклограммы направленного прибора
-            tx_work_units_cntr++;
-//------------------------------------------------------------------------------------
-
-
-//        }// end if STATE_NORMAL
-
-
-//        if(i_filter < (MA_WINDOW_SIZE - 1))
-//            i_filter++;
-//        else i_filter = 0;
+//            /* Ожидание начала нового цикла измерений APS (APS - angular position system) */
+//            //выдача команды на прерывание раз в PI/8
+//            if (aps_state.mode == APS_READY)
+//            {
+//                error_msg = 0x00;
+//                error_sector_msg = 0x0000;
+//                aps_state.tim = 0;//
+//                //для передачи !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+/////                i_16_tWg = (int16_t)(W_g * 572.96);
+//                /* Если скорость достаточна (вращение) */
+//                if (metrics.W_g > WMIN)
+//                {
+//                    G_pin_int::lo();
+//                    G_red_led::lo();
+//                    aps_state.mode = APS_WAIT_NEXT_POINT;
+////                    delay = MA_delay; //угловая задержка
+////                    turnStartTime = Now;
+//                    aps_state.rot = -1.0; // для макета и новой платы одинаково
+//                    aps_state.angle_path_wg = 0;
+//                    // старт с произвольного угла
+//                    aps_state.start_APS = metrics.MTF;// стартовй угол равен текущему МТФ
+//                    //для передачи!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+/////                    fApsStartAngle = MTF * rot;
+/////                    i_16_tApsStartAngle = (int16_t)(MTF * rot * 572.96);
+//                    //вычисляем сразу все 16 угловых положений для выдачи прерывания на измерения
+//                    // и приводим их значения к интервалу от -PI до PI исключая PI (по правилам atan2)
+//                    for (int idx = 0; idx < 16; idx++)
+//                    {
+//                        aps_state.aps_point_arr[idx] = aps_state.start_APS + idx * aps_state.rot * M_PI / 8.0;
+//                        while (aps_state.aps_point_arr[idx] <= -M_PI) aps_state.aps_point_arr[idx] += 2*M_PI;
+//                    }
+//
+//                    aps_point = aps_state.aps_point_arr[0]; //aps_point - транслируем в uart можно убрать пoсле отладки
+//                    G_pin_int::hi();
+//                    G_red_led::hi();
+//                    // ---  для циклограммы направленного прибора ---
+////                    cyclogram_state = TX_DIRECT_MESS;
+//                    aps_idx_out = aps_state.aps_idx;
+//                    variables_reset();
+////------------------------------------------------------------------------------------
+//                    aps_state.pulse = 0;//сбрасываем счетчиk
+//                    aps_state.aps_idx++;// инкреметируем счетчик массива угловых положений
+//                #ifdef MAX_W_STOP
+//                    beth_pulse_delay_tim = 0;//время между импульсами- инкрементируем -
+//                #endif
+//                }//end if(W_g > WMIN)
+//                /* Если скорость недостаточна (нет вращения или слишком медленно) */
+//                else
+//                {
+////------------------------------------------------------------------------------------
+//                    // для циклограммы направленного прибора
+//                    // ненаправленные измерения
+////                     = TX_NOT_DIRECT_MESS;
+//                    variables_reset();
+//                    aps_state.mode = APS_COMPLETE;
+////------------------------------------------------------------------------------------
+/////                    bitWrite(error_msg, MIN_W_ERR_BIT, 1);
+/////                    bitWrite(error_msg, VIBRATION_BIT, bIsMoving);
+//                }
+//            } /* if (aps_state.mode == APS_READY) */
+//            /* Ожидание достижения следующей угловой точки. */
+//            else if (aps_state.mode == APS_WAIT_NEXT_POINT)
+//            {
+//            #ifdef MAX_W_STOP
+//                beth_pulse_delay_tim ++;//время между импульсами- инкрементируем -
+//            #endif
+//                aps_state.pulse++;//длительность импульса на прерывание в мс - инкрементируем- т к цикл составляет 1 мс
+//                /*  если счетчик длительности импульса больше ширины выключаем */
+//                if (aps_state.pulse > PULSE_WIDTH) //PULSE_WIDTH - длительность импульса на прерывание
+//                {
+//                    G_pin_int::lo();
+//                    G_red_led::lo();
+//                }
+//                /* не набрали полный круг за 5000 сек */
+//                aps_state.tim++;
+//                if (aps_state.tim > 5000)
+//                {
+//                    aps_state.tim = 0;
+//                    aps_state.mode = APS_READY;
+////------------------------------------------------------------------------------------
+//                    // для циклограммы направленного прибора
+////                    cyclogram_state = RX_SURVEY;
+////------------------------------------------------------------------------------------
+////                    delay = 0;
+/////                    bitWrite(error_msg, TIMEOUT_ERR_BIT, 1);
+//                }
+//
+//                aps_state.angle_path_wg += metrics.Wg_1000;  //угловой путь от начала отсчета в радианах (Wg_1000 - угловая скорость рад/милисек)
+//                //angle_path_wg += ( w_modul_buff[MLD_WINDOW_SIZE-1] + w_modul_buff[MLD_WINDOW_SIZE-2])/2.0;
+//
+//                if (aps_state.angle_path_wg > (M_PI / 8 + 4.0 * aps_delta) && settings.INTERRUPT_BY_ANGLE_PATH == 1)
+//                {
+//                    aps_state.interrupt_by_angle_path = true;//принимаем решение
+//                }
+//
+//                /* Старт с произвольного угла */
+//                aps_point = aps_state.aps_point_arr[aps_state.aps_idx]; //aps_point - транслируем в uart можно убрать пoсле отладки
+//
+//                if ((aps_state.final_MTF_m_p > aps_state.aps_point_arr[aps_state.aps_idx] - aps_delta
+//                    && aps_state.final_MTF_m_p < aps_state.aps_point_arr[aps_state.aps_idx] + aps_delta)
+//                    || aps_state.interrupt_by_angle_path == true) //попадание в вилку
+//                {
+//                #ifdef MAX_W_STOP
+//                    if (beth_pulse_delay_tim <= BETH_PULSE_DELAY)
+//                    {
+//                        aps_state.mode = APS_COMPLETE;
+/////                        bitWrite(error_msg, MAX_W_ERR, 1);
+//                    }
+//                    else
+//                    {
+//                #endif
+//                        G_pin_int::hi();
+//                        G_red_led::hi();
+////------------------------------------------------------------------------------------
+//                        // для циклограммы направленного прибора
+////                        cyclogram_state = TX_DIRECT_MESS;
+//                        aps_idx_out = aps_state.aps_idx;
+//                        variables_reset();
+////------------------------------------------------------------------------------------
+//                        aps_state.pulse = 0;//сбрасываем счетчик времени для импульса прерывания
+/////                        bitWrite(error_msg, NOT_REACH_END, 1);
+/////                        bitWrite(error_msg, K_PREDIKT_1, (int)(K_predict));
+/////                        bitWrite(error_sector_msg, aps_idx, interrupt_by_angle_path);
+//                        //aps_arr[aps_idx] = (angle_path_wg-PI/8)/(slo_modul_w);//не выводим 16 значений
+//                        //aps_m_arr[aps_idx] = (angle_path_wg-PI/8)/APS_DELTA;
+//                        aps_state.interrupt_by_angle_path = false;
+//                        aps_state.angle_path_wg = 0;//обнуляем угловой путь в момент прерывания
+//                        aps_state.aps_idx++;// инкреметируем счетчик массива угловых положений
+//                        /* Cделан полный оборот, 16 импульсов выдано */
+//                        if (aps_state.aps_idx == 16)//если сделали полный оборот
+//                        {
+////                            aps_m_arr[16] = aps_delta * 57.296;//можно убрать пoсле отладки
+/////                            bitWrite(error_msg, NOT_REACH_END, 0);
+//                            aps_state.aps_idx = 0;
+//                            aps_state.mode = APS_COMPLETE;
+//
+//                            G_pin_int::lo(); //GPIO_WritePin(PIN_INTERRUPT, 0);
+//                            G_red_led::lo(); //GPIO_WritePin(LED_2, 0);
+//                        }
+//                #ifdef MAX_W_STOP //max_W_stop
+//                    }
+//                    beth_pulse_delay_tim = 0;
+//                #endif
+//                }
+//            }//end if APS_WAIT_NEXT_POINT
+//
+////------------------------------------------------------------------------------------
+//// для циклограммы направленного прибора
+//            tx_work_units_cntr++;
+////------------------------------------------------------------------------------------
+//
+//
+////        }// end if STATE_NORMAL
+//
+//
+////        if(i_filter < (MA_WINDOW_SIZE - 1))
+////            i_filter++;
+////        else i_filter = 0;
         i_filter = (i_filter + 1) & (MA_WINDOW_SIZE - 1);
 
     } //end if not idle

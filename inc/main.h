@@ -73,7 +73,7 @@ struct Set
    uint32_t MLD_WINDOW_SIZE = 32u;
    uint32_t N = 128u;
    uint32_t K = 128u;
-   uint32_t AUTO_DELTA = 1u;
+   uint32_t AUTO_DELTA = 0u;
    uint32_t INTERRUPT_BY_ANGLE_PATH = 0u;
    uint16_t MOVEMENT_CMP_VALUE = 300u;
    float W_MIN = 3.14f; // рад/с
@@ -102,6 +102,7 @@ enum Fram_markup
 extern Ais2ih g_axel;
 extern L3gd20h g_gyro;
 
+void fill_aps_buff();
 void run_aps(Vec& axel, Vec& mag, Vec& gyro);
 
 #endif /* MAIN_H_INCLUDED */
