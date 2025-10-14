@@ -398,8 +398,8 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
             /* если отклонение от вертикали превышает 6 градусов */
             if (fabs(metrics.angle_zen) >= 0.1) //rad
             {
-                metrics.angle_azm = M_PI - atan2((metrics.M.Y*metrics.G.X - metrics.M.X*metrics.G.Y)*metrics.G_modul,
-                                         (metrics.M.X*metrics.G.X*metrics.G.Z + metrics.M.Y*metrics.G.Y*metrics.G.Z - metrics.M.Z*metrics.G.X*metrics.G.X - metrics.M.Z*metrics.G.Y*metrics.G.Y)); //pi-
+                metrics.angle_azm = M_PI - atan2((metrics.M.Y * metrics.G.X - metrics.M.X * metrics.G.Y) * metrics.G_modul,
+                                         (metrics.M.X * metrics.G.X * metrics.G.Z + metrics.M.Y * metrics.G.Y * metrics.G.Z - metrics.M.Z * metrics.G.X * metrics.G.X - metrics.M.Z * metrics.G.Y * metrics.G.Y)); //pi-
             }
             /* если вертикально, то азимут считаем в апсидальной плоскости */
             else
