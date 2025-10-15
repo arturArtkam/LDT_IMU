@@ -205,7 +205,7 @@ __attribute__((always_inline)) inline void print(TextStream& stream) { stream <<
 template <class First, class... Other>
 __attribute__((always_inline)) inline void print(TextStream& stream, const First &first, const Other&... other)
 {
-    stream << first << " ";
+    stream << first << "";
     print(stream, other...);
 }
 

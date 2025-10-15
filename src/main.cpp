@@ -88,6 +88,7 @@ void SystemClock_Config_LL()
     // Можно вызвать функцию SystemCoreClockUpdate(), которая сама все рассчитает.
     SystemCoreClockUpdate();
 }
+
 Dbg_uart g_dbg_uart;
 ProjectLogger g_logger(g_dbg_uart);
 Ais2ih g_axel;

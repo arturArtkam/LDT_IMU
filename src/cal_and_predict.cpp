@@ -18,7 +18,7 @@ void S_X(float S_x[5], int N)
         S_x[4] += pow(x, 4);
     }
 
-    S_x[0] = N * S_x[4] * S_x[2] + S_x[3] * S_x[2] * S_x[1] + S_x[3]* S_x[2] * S_x[1] - S_x[2] * S_x[2] * S_x[2] - S_x[4] * S_x[1] * S_x[1] - N * S_x[3] *S_x[3];
+    S_x[0] = N * S_x[4] * S_x[2] + S_x[3] * S_x[2] * S_x[1] + S_x[3] * S_x[2] * S_x[1] - S_x[2] * S_x[2] * S_x[2] - S_x[4] * S_x[1] * S_x[1] - N * S_x[3] * S_x[3];
 }
 
 float predict(float *abc, float *data, float S_x[5], int N)
@@ -37,7 +37,9 @@ float predict(float *abc, float *data, float S_x[5], int N)
     Delta_2 = N * S_x[4] * S_xy + S_x[3] * S_x[2] * S_y + S_x[2] * S_x[1] * S_x2y - S_x[2] * S_x[2] * S_xy - S_x[4] * S_y * S_x[1] - N * S_x[3] * S_x2y;
     Delta_3 = S_x[4] * S_x[2] * S_y + S_x[3] * S_x[1] * S_x2y + S_x[3] * S_x[2] * S_xy - S_x[2] * S_x[2] * S_x2y - S_x[4] * S_x[1] * S_xy - S_x[3] * S_x[3] * S_y;
 
-    abc[0] = Delta_1 / S_x[0]; abc[1] = Delta_2 / S_x[0]; abc[2] = Delta_3 / S_x[0];
+    abc[0] = Delta_1 / S_x[0];
+    abc[1] = Delta_2 / S_x[0];
+    abc[2] = Delta_3 / S_x[0];
 
     float prediction = ((N)*(N)*abc[0] + (N)* abc[1] + abc[2]);
     return prediction;
@@ -52,5 +54,5 @@ float predict(float *abc, float *data, float S_x[5], int N)
 
 struct Vec callibrate(struct Vec Data , struct Cal calib)
 {
-return  mtrx_vctr_mltp(calib.sens, (vctr_diff(Data, calib.offset)));
+    return  mtrx_vctr_mltp(calib.sens, (vctr_diff(Data, calib.offset)));
 }

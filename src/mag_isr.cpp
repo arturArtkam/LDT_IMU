@@ -471,11 +471,13 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
             for (int8_t idx = 0; idx < 16; idx++)
             {
                 if ((aps_state.final_MTF_m_p > aps_state.aps_point_arr[idx] - aps_delta
-                    && aps_state.final_MTF_m_p < aps_state.aps_point_arr[idx] + aps_delta) && saved_idx != idx)
+                    && aps_state.final_MTF_m_p < aps_state.aps_point_arr[idx] + aps_delta)
+                    && saved_idx != idx
+                    && ((std::abs(saved_idx - idx) == 1) || (std::abs(saved_idx - idx) == 15)))
                 {
                     saved_idx = idx;
                     G_red_led::toggle();
-                    print(g_dbg_uart, "APS:", aps_state.final_MTF_m_p, ", ", aps_state.aps_point_arr[idx], ", ", aps_delta);
+                    print(g_dbg_uart, "APS ", idx, ": ", aps_state.prediction, ", ", aps_state.final_MTF_m_p, ", ", aps_state.aps_point_arr[idx], ", ", aps_delta);
                     break;
                 }
             }
