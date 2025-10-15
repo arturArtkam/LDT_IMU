@@ -18,6 +18,7 @@ typedef Pin<PORTB, 3, LL_GPIO_MODE_OUTPUT, LL_GPIO_SPEED_FREQ_MEDIUM, LL_GPIO_OU
 typedef Pin<PORTB, 11, LL_GPIO_MODE_OUTPUT, LL_GPIO_SPEED_FREQ_MEDIUM> G_pin_int;
 
 #include "uart_ll_g4xx.h"
+#include "dbg_uart.h"
 #include "delay.h"
 #include "mb85_ic.h"
 #include "linalg.h"
@@ -41,6 +42,9 @@ typedef Pin<PORTB, 11, LL_GPIO_MODE_OUTPUT, LL_GPIO_SPEED_FREQ_MEDIUM> G_pin_int
 typedef Pin<PORTB, 3, LL_GPIO_MODE_OUTPUT, LL_GPIO_SPEED_FREQ_HIGH> Fram_cs_pin;
 typedef Hw_spi<SPI2_BASE, Af_pin<PORTB, 15>, Af_pin<PORTB, 14>, Af_pin<PORTB, 13>> Fram_spi;
 typedef ic_mb85<MB85RS256_SIZE, Fram_spi, Fram_cs_pin> G_fram;
+
+typedef Uart_dbg<UART1, Af_pin<PORTA, 9, LL_GPIO_AF_7>> Dbg_uart;
+extern Dbg_uart g_dbg_uart;
 
 #include "ais2ih.h"
 #include "l3gd20h_ic.h"

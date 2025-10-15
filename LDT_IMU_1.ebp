@@ -138,6 +138,7 @@
 		<Unit filename="inc\ads131_ic.h" />
 		<Unit filename="inc\ais2ih.h" />
 		<Unit filename="inc\cal_and_predict.h" />
+		<Unit filename="inc\dbg_uart.h" />
 		<Unit filename="inc\delay_tim.h" />
 		<Unit filename="inc\l3gd20h_ic.h" />
 		<Unit filename="inc\linalg.h" />

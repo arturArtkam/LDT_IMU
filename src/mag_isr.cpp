@@ -1,4 +1,5 @@
 #include "main.h"
+#include "prj_logger.h"
 #include <math.h>
 
 constexpr size_t MA_BUFFER_SIZE = 32;
@@ -115,13 +116,15 @@ void variables_reset(void)
 //};
 
 // Структура для хранения калибровочных коэффициентов
-struct CalibrationData {
+struct CalibrationData
+{
     Cal G_cal;
     Cal M_cal;
     Cal W_cal;
 };
 
-struct CalculatedData {
+struct CalculatedData
+{
     // Отфильтрованные и откалиброванные векторы
     Vec G_ma = {0.0f, 0.0f, 0.0f}, M_ma = {0.0f, 0.0f, 0.0f}, W_ma = {0.0f, 0.0f, 0.0f};
     Vec G = {0.0f, 0.0f, 0.0f}, M = {0.0f, 0.0f, 0.0f}, W = {0.0f, 0.0f, 0.0f};
@@ -144,9 +147,8 @@ struct CalculatedData {
     volatile float angle_zen_deg = 0.0f, angle_aps_deg = 0.0f, angle_azm_deg = 0.0f, angle_aps_m_deg = 0.0f, MTF_deg = 0.0f;
 };
 
-
-
-struct ApsAlgorithmState {
+struct ApsAlgorithmState
+{
     // --- Состояние детектора движения ---
     volatile bool is_moving = false;
     uint32_t no_mov_delay_tim = 0;
@@ -254,7 +256,7 @@ void fill_aps_buff()
         while (aps_state.aps_point_arr[idx] <= -M_PI) aps_state.aps_point_arr[idx] += 2*M_PI;
     }
 }
-//extern "C" void EXTI0_IRQHandler()
+
 void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
 {
 //    static uint16_t i_filter = 0;
@@ -268,16 +270,6 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
     const int AUTO_DELTA = settings.AUTO_DELTA;
     aps_delta = settings.APS_DELTA;
     const float HISTORY_ANGLE = settings.HISTORY_ANGLE;
-
-//    N = 128;
-//    K = 128;
-//    K_predict = 0.5f;
-//    MA_WINDOW_SIZE = 32;
-//    MLD_WINDOW_SIZE = 32;
-//    WMIN = 3.14f;// rad/c
-//    WMAX = 18.84f;// rad/c
-//    APS_DELTA = M_PI / 360.0f;
-//    history_angle = (20.0f * M_PI) / 360.0f;
 
 ////    if((bExtADCReady)&&(device_state != STATE_IDLE))
     {
@@ -447,7 +439,7 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
             {
                 for (int i = 0; i < N - 1; i++)
                 {
-                    aps_state.mtf_buffer[i] += 2*M_PI;
+                    aps_state.mtf_buffer[i] += 2 * M_PI;
                 }
             }
             //пишем в хвост буфера текущий MTF_C
@@ -455,7 +447,7 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
             //находим К
             //omega = (MTF_buff[N - 5] - MTF_buff[N - 1]) / 4;
             //K = (int)fabs(history_angle / omega);
-            K = (int)fabs(HISTORY_ANGLE / metrics.Wg_1000);//rad per 1mc
+            K = (int)fabs(HISTORY_ANGLE / metrics.Wg_1000); //rad per 1mc
             MA_delay = metrics.Wg_1000 * MA_WINDOW_SIZE / 4.0; //rad угловая задержка на скользящем среднем зависит от скорости
             if (K < 1) K = 1;
             if (K > N) K = N - 1;
@@ -472,16 +464,32 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
             else
                 K_predict = 0.5;
 
-///            aps_state.final_MTF_m_p = (metrics.MTF * (1 - K_predict) + K_predict * aps_state.prediction);
+            aps_state.final_MTF_m_p = (metrics.MTF * (1 - K_predict) + K_predict * aps_state.prediction);
 
-            aps_state.final_MTF_m_p = metrics.MTF;
-            if ((aps_state.final_MTF_m_p > aps_state.aps_point_arr[aps_state.aps_idx] - aps_delta
-                && aps_state.final_MTF_m_p < aps_state.aps_point_arr[aps_state.aps_idx] + aps_delta)
-                || aps_state.interrupt_by_angle_path == true) //попадание в вилку
+            static int8_t saved_idx = 0;
+
+            for (int8_t idx = 0; idx < 16; idx++)
             {
-                aps_state.aps_idx = (aps_state.aps_idx + 1) & (16 - 1);
-                G_red_led::toggle();
+                if ((aps_state.final_MTF_m_p > aps_state.aps_point_arr[idx] - aps_delta
+                    && aps_state.final_MTF_m_p < aps_state.aps_point_arr[idx] + aps_delta) && saved_idx != idx)
+                {
+                    saved_idx = idx;
+                    G_red_led::toggle();
+                    print(g_dbg_uart, "APS:", aps_state.final_MTF_m_p, ", ", aps_state.aps_point_arr[idx], ", ", aps_delta);
+                    break;
+                }
             }
+
+//            if ((aps_state.final_MTF_m_p > aps_state.aps_point_arr[aps_state.aps_idx] - aps_delta
+//                && aps_state.final_MTF_m_p < aps_state.aps_point_arr[aps_state.aps_idx] + aps_delta)
+//                || aps_state.interrupt_by_angle_path == true) //попадание в вилку
+//            {
+//                aps_state.aps_idx = (aps_state.aps_idx + 1) & (16 - 1);
+//                G_red_led::toggle();
+//            }
+        i_filter = (i_filter + 1) & (MA_WINDOW_SIZE - 1);
+    } //end if not idle
+}
 
 //            /* Ожидание начала нового цикла измерений APS (APS - angular position system) */
 //            //выдача команды на прерывание раз в PI/8
@@ -641,9 +649,9 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
 ////        if(i_filter < (MA_WINDOW_SIZE - 1))
 ////            i_filter++;
 ////        else i_filter = 0;
-        i_filter = (i_filter + 1) & (MA_WINDOW_SIZE - 1);
-
-    } //end if not idle
-
-    // GPIO_WritePin(LED_1, 0);
-}
+//        i_filter = (i_filter + 1) & (MA_WINDOW_SIZE - 1);
+//
+//    } //end if not idle
+//
+//     GPIO_WritePin(LED_1, 0);
+//}

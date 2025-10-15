@@ -1,48 +1,6 @@
 #include "main.h"
 #include "prj_logger.h"
 
-template<Uart_num uart_n, class io_pin>
-class Uart_dbg : public TextStream
-{
-private:
-    typedef uart_x<uart_n, io_pin> _Uart;
-
-public:
-    virtual ~Uart_dbg() = default;
-    Uart_dbg() {}
-
-    void init(LL_RCC_ClocksTypeDef* rcc_clocks);
-
-    virtual int GetChar(int timeout = 0) override { return timeout; }
-    virtual int Keypressed() override { return -1; }
-    virtual int CanSend() override { return true; };
-    virtual int TxEmpty() override { return true; };
-    virtual void PutChar(char ch) override;
-};
-
-template<Uart_num uart_n, class io_pin>
-void Uart_dbg<uart_n, io_pin>::init(LL_RCC_ClocksTypeDef* rcc_clocks)
-{
-    io_pin::init();
-    io_pin::pullup();
-
-    _Uart::enable_clocks();
-
-    set_baud(_Uart::USARTn, rcc_clocks->PCLK2_Frequency, 9600);
-    /* Переводим в полудуплексный режим до включения приемо-передатчика */
-    SET_BIT(_Uart::USARTn->CR3, USART_CR3_HDSEL);
-    /* Разрешена работа "на передачу" */
-    SET_BIT(_Uart::USARTn->CR1, USART_CR1_TE);
-    SET_BIT(_Uart::USARTn->CR1, USART_CR1_UE);
-}
-
-template<Uart_num uart_n, class io_pin>
-void Uart_dbg<uart_n, io_pin>::PutChar(char ch)
-{
-    while (!LL_USART_IsActiveFlag_TXE_TXFNF(_Uart::USARTn));
-    _Uart::USARTn->TDR = ch;
-}
-
 void SystemClock_Config_LL()
 {
     /* 1. Настройка регулятора напряжения и включение тактирования PWR */
@@ -130,10 +88,8 @@ void SystemClock_Config_LL()
     // Можно вызвать функцию SystemCoreClockUpdate(), которая сама все рассчитает.
     SystemCoreClockUpdate();
 }
-
-class Dummy_pin{};
-Uart_dbg<UART1, Af_pin<PORTA, 9, LL_GPIO_AF_7>> dbg_uart;
-ProjectLogger g_logger(dbg_uart);
+Dbg_uart g_dbg_uart;
+ProjectLogger g_logger(g_dbg_uart);
 Ais2ih g_axel;
 L3gd20h g_gyro;
 Ads ads131;
@@ -145,23 +101,6 @@ extern "C" void EXTI2_IRQHandler(void)
 //    g_mag.Measure_XYZ_WithAutoSR();
 
 }
-
-int32_t to_signed_18bit(uint32_t raw) {
-    int32_t val = (int32_t)raw;
-    if (val & 0x20000) { // если установлен знак (бит 17)
-        val -= 0x40000;  // вычесть 2^18, получить отрицательное значение
-    }
-    return val;
-}
-
-struct Res
-{
-    int32_t X;
-    int32_t Y;
-    int32_t Z;
-};
-
-static Res res_m = {0,0,0};
 
 static bool Powered()
 {
@@ -362,7 +301,7 @@ int main()
     G_red_led::init();
     G_green_led::init();
     g_Delay::init(clocks.PCLK2_Frequency);
-    dbg_uart.init(&clocks);
+    g_dbg_uart.init(&clocks);
 
     SR_pin::init();
 
@@ -484,7 +423,7 @@ int main()
                 hmc[1] = ads131.data[HMC_ADC_CHANNEL_Y] - offset[1];
                 hmc[2] = ads131.data[HMC_ADC_CHANNEL_Z] - offset[2];
 
-                mag = {(float)hmc[0], (float)hmc[1], (float)hmc[2]};
+                mag = {(float)hmc[0], (float)hmc[1], -(float)hmc[2]};
 
 //                SPI1->CR1 &= ~SPI_CR1_SPE;
 //                SPI1->SR = 0;
@@ -519,7 +458,7 @@ int main()
                 run_aps(axel, mag, gyro);
             }
 
-            if ((cnt > 3) && ((cnt & 0x1FF) == 0)) print(dbg_uart, mag.X, ", ", mag.Y, ", ", mag.Z, ", ", axel.X, ", ", axel.Y, ", ", axel.Z);
+            if ((cnt > 3) && ((cnt & 0x1FF) == 0)) ;//print(g_dbg_uart, mag.X, ", ", mag.Y, ", ", mag.Z, ", ", axel.X, ", ", axel.Y, ", ", axel.Z);
             cnt++;
         }
 
