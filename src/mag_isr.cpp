@@ -554,14 +554,14 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
             if (K < 3) K = 3;       // Для параболы нужно минимум 3 точки
             if (K > N) K = N;
 
-            // Вычисляем задержку
+            // Вычисление задержки
             const float ma_filter_lag_samples = (MA_WINDOW_SIZE - 1) / 2.0f;
 
-            // --- Предсказываем КАЖДУЮ компоненту ОТДЕЛЬНО ---
+            // Предсказание каждой компоненты отдельно
             float sin_pred = predict_component(aps_state.sin_mtf_buffer, N, K, ma_filter_lag_samples, S_x[K]);
             float cos_pred = predict_component(aps_state.cos_mtf_buffer, N, K, ma_filter_lag_samples, S_x[K]);
 
-            // --- Восстанавливаем угол из предсказанных компонентов ---
+            // Восстанавление угла из предсказанных компонент
             aps_state.prediction = atan2(sin_pred, cos_pred);
 
             float diff = bulletproofWrapToPi(aps_state.prediction - metrics.MTF);
