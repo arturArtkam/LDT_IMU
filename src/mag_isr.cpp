@@ -37,7 +37,7 @@ struct Vec G_Summa = {0, 0, 0}, M_Summa = {0, 0, 0}, W_Summa = {0, 0, 0}, G_Data
 
 //для калибровок
 struct Cal G_offset_sens = { 3909340, 3912131, 3944069, 1, 0, 0, 0, 1, 0, 0, 0, 1 },
-           M_offset_sens = { -4910770, -3802600, -3421118, 1, 0, 0, 0, 0.897, 0, 0, 0, 1 },
+           M_offset_sens = { 0, 0, 0, 0.157f, 0, 0, 0, 0.157f, 0, 0, 0, 0.157f },
            W_offset_sens = { 0, 0, 0, 0.001221726, 0, 0, 0, 0.001221726, 0, 0, 0, 0.001221726 }; //rad per digit
 
 //           G_offset_sens_add = { 0,0,0,1,0,0,0,1,0,0,0,1 },
@@ -131,6 +131,7 @@ struct CalculatedData
 
     // Производные значения
     float G_modul = 0.0f;
+    float M_modul = 0.0f;
     float W_g = 0.0f; // Угловая скорость по оси Z
     float Wg_1000 = 0.0f; // Угловая скорость в рад/мс
     float Wg_offset = 0.0f; // Смещение нуля гироскопа
@@ -155,6 +156,8 @@ struct ApsAlgorithmState
 
     // --- Состояние алгоритма прогнозирования ---
     float mtf_buffer[PREDICTION_BUFFER_SIZE] = {0.0f};
+    float sin_mtf_buffer[PREDICTION_BUFFER_SIZE] = {0.0f};
+    float cos_mtf_buffer[PREDICTION_BUFFER_SIZE] = {0.0f};
     float prediction = 0.0f;
     float poly_coeffs[3] = {0.0f}; // Коэффициенты a,b,c
 
@@ -163,7 +166,7 @@ struct ApsAlgorithmState
     float start_APS = 0;
     float aps_point_arr[16] = {0.0f};
     uint16_t aps_idx = 0; // Счетчик массива угловых положений
-    float rot = 1.0f; // Направление вращения
+//    float rot = 1.0f; // Направление вращения
 
     // --- Таймеры и счетчики APS ---
     volatile uint32_t tim = 0;
@@ -250,11 +253,64 @@ void fill_aps_buff()
 {
     //вычисляем сразу все 16 угловых положений для выдачи прерывания на измерения
     // и приводим их значения к интервалу от -PI до PI исключая PI (по правилам atan2)
+    if (settings.ROT == -1)
+    {
+        for (int idx = 0; idx < 16; idx++)
+        {
+            aps_state.aps_point_arr[15 - idx] = aps_state.start_APS + idx * M_PI / 8.0f;
+            while (aps_state.aps_point_arr[15 - idx] >= M_PI) aps_state.aps_point_arr[15 - idx] -= 2 * M_PI;
+        }
+    }
+    else if (settings.ROT == 1)
+    {
+        for (int idx = 0; idx < 16; idx++)
+        {
+            aps_state.aps_point_arr[idx] = aps_state.start_APS - idx * M_PI / 8.0f;
+            while (aps_state.aps_point_arr[idx] <= -M_PI) aps_state.aps_point_arr[idx] += 2 * M_PI;
+        }
+    }
+    else
+    {
+        while (1);
+    }
+
     for (int idx = 0; idx < 16; idx++)
     {
-        aps_state.aps_point_arr[idx] = aps_state.start_APS + idx * -aps_state.rot * M_PI / 8.0f;
-        while (aps_state.aps_point_arr[idx] <= -M_PI) aps_state.aps_point_arr[idx] += 2*M_PI;
+        print(g_dbg_uart, "idx ", idx, " ", aps_state.aps_point_arr[idx]);
     }
+}
+
+/**
+ * @brief Приводит угол (в радианах) к каноническому диапазону [-PI, PI].
+ *        Это необходимо для корректной работы с циклическими величинами.
+ * @param angle_rad Угол для "заворачивания".
+ * @return Угол в диапазоне [-PI, PI].
+ */
+float wrapToPi(float angle_rad) {
+    while (angle_rad > M_PI) {
+        angle_rad += 2 * M_PI;
+    }
+    while (angle_rad <= -M_PI) {
+        angle_rad -= 2 * M_PI;
+    }
+    return angle_rad;
+}
+
+/**
+ * @brief Самая надежная функция для приведения угла к диапазону [-PI, PI].
+ *        Использует fmod и обрабатывает все крайние случаи.
+ */
+float bulletproofWrapToPi(float angle_rad) {
+    // Сразу отсекаем NaN и inf
+    if (isnan(angle_rad) || isinf(angle_rad)) {
+        return 0.0f;
+    }
+
+    float remainder = fmod(angle_rad + M_PI, 2.0f * M_PI);
+    if (remainder < 0.0f) {
+        remainder += 2.0f * M_PI;
+    }
+    return remainder - M_PI;
 }
 
 void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
@@ -304,7 +360,7 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
             //теперь вычитаем offset и умножаем на матрицу, где главная диагональ - это масштабы осей,
             //XY=YX,XZ=ZX,ZY=YZ - малые диагонали, отвечающие за неортогонaльность осей.
 ///            G = callibrate(G, G_offset_sens);
-///            M = callibrate(M, M_offset_sens);
+            metrics.M = callibrate(metrics.M, M_offset_sens);
             metrics.W = callibrate(metrics.W, W_offset_sens);
 
             metrics.W_g = metrics.W.Z;
@@ -315,7 +371,7 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
 
             //вычисляем щас, потом несколько рaз пригодится
             metrics.G_modul = modul(metrics.G);
-//            metrics.M_modul = modul(metrics.M);
+            metrics.M_modul = modul(metrics.M);
 //            metrics.W_modul = W_g;
 
             //Вычисляем СЛО вектора магнитного поля земли по 32 последним значениям.
@@ -380,8 +436,8 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
             }
 
             //вычисляем углы
-            metrics.angle_aps = atan2(metrics.G.Y, metrics.G.X);
-            metrics.angle_aps_m = atan2(metrics.M.Y, metrics.M.X);
+            metrics.angle_aps = atan2(metrics.G.X, metrics.G.Y);
+            metrics.angle_aps_m = atan2(metrics.M.X, metrics.M.Y);
             // на стоянке
             if (!aps_state.is_moving)
             {
@@ -392,10 +448,23 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
             }
 
             /* Расчет MTF (Magnetic Tool Face - Угол установки отклонителя) */
-            metrics.MTF = metrics.angle_aps_m; // - metrics.G_M_angle;
-            /* Нормализация MTF в диапазон (-PI, PI] */
-            while (metrics.MTF > M_PI) metrics.MTF -= 2 * M_PI;
-            while (metrics.MTF <= -M_PI)  metrics.MTF += 2 * M_PI;
+            metrics.MTF = bulletproofWrapToPi(metrics.angle_aps_m); // - metrics.G_M_angle;
+//            /* Нормализация MTF в диапазон (-PI, PI] */
+//            if (settings.ROT == -1)
+//            {
+//                while (metrics.MTF > M_PI) metrics.MTF += 2 * M_PI;
+//                while (metrics.MTF <= -M_PI)  metrics.MTF -= 2 * M_PI;
+//            }
+//            else if (settings.ROT == 1)
+//            {
+//                while (metrics.MTF > M_PI) metrics.MTF -= 2 * M_PI;
+//                while (metrics.MTF <= -M_PI)  metrics.MTF += 2 * M_PI;
+//            }
+//            else
+//            {
+//                while (1);
+//            }
+
             //зенитный угол
             metrics.angle_zen = atan2(sqrt(metrics.G.X * metrics.G.X + metrics.G.Y * metrics.G.Y), metrics.G.Z);
             /* если отклонение от вертикали превышает 6 градусов */
@@ -429,42 +498,75 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
 //или 180-1080 град/с, или PI - 6*PI rad/c, или ~ 0.0031416-0,0188496 rad/tick
 //для этого диапазона скоростей К будет лежать в пределах 128 - 22.
 
-            //проталкиваем буфер на единицу
-            for (int i = 0; i < N - 1; i++)
-            {
-                aps_state.mtf_buffer[i] = aps_state.mtf_buffer[i + 1];//??? откуда получаем MTF[N-1] MTF_C[N-2]
-            }
-            // если перескакивает через +_ PI смещаем весь буфер на 2PI
-            if (aps_state.mtf_buffer[N - 1] - metrics.MTF < -M_PI)
-            {
-                for (int i = 0; i < N - 1; i++)
-                {
-                    aps_state.mtf_buffer[i] += 2 * M_PI;
-                }
-            }
-            //пишем в хвост буфера текущий MTF_C
-            aps_state.mtf_buffer[N - 1] = metrics.MTF;
-            //находим К
-            //omega = (MTF_buff[N - 5] - MTF_buff[N - 1]) / 4;
-            //K = (int)fabs(history_angle / omega);
-            K = (int)fabs(HISTORY_ANGLE / metrics.Wg_1000); //rad per 1mc
-            MA_delay = metrics.Wg_1000 * MA_WINDOW_SIZE / 4.0; //rad угловая задержка на скользящем среднем зависит от скорости
-            if (K < 1) K = 1;
-            if (K > N) K = N - 1;
-            // подставляем хвост массива размера К в функцию для прогноза
-            aps_state.prediction = predict(abc, &aps_state.mtf_buffer[N - K - 1], S_x[K], K);
-// --- конец следящего алгоритма ---
+//            //проталкиваем буфер на единицу
+//            for (int i = 0; i < N - 1; i++)
+//            {
+//                aps_state.mtf_buffer[i] = aps_state.mtf_buffer[i + 1];//??? откуда получаем MTF[N-1] MTF_C[N-2]
+//            }
+//            // если перескакивает через +_ PI смещаем весь буфер на 2PI
+//            if (aps_state.mtf_buffer[N - 1] - metrics.MTF < -M_PI)
+//            {
+//                for (int i = 0; i < N - 1; i++)
+//                {
+//                    aps_state.mtf_buffer[i] += 2 * M_PI;
+//                }
+//            }
+//            //пишем в хвост буфера текущий MTF_C
+//            aps_state.mtf_buffer[N - 1] = metrics.MTF;
+//            //находим К
+//            //omega = (MTF_buff[N - 5] - MTF_buff[N - 1]) / 4;
+//            //K = (int)fabs(history_angle / omega);
+//            K = (int)fabs(HISTORY_ANGLE / metrics.Wg_1000); //rad per 1mc
+//            MA_delay = metrics.Wg_1000 * MA_WINDOW_SIZE / 4.0; //rad угловая задержка на скользящем среднем зависит от скорости
+//            if (K < 1) K = 1;
+//            if (K > N) K = N - 1;
+//            // подставляем хвост массива размера К в функцию для прогноза
+//            aps_state.prediction = predict(abc, &aps_state.mtf_buffer[N - K - 1], S_x[K], K);
+//// --- конец следящего алгоритма ---
+//
+//            if (AUTO_DELTA == 1)
+//                aps_delta = settings.APS_DELTA + fabs(metrics.Wg_1000 * settings.K_delta);
+//            //смешиваем измеренный и спрогнозированный углы в пропорции с коэфф K_predict
+//            //и вычитаем разницу полученную на стоянке
+//            if (fabs(metrics.MTF - aps_state.prediction) > aps_delta)
+//            {
+//                K_predict = 1;
+////                print(g_dbg_uart, "K_predict == 1");
+//            }
+//            else
+//                K_predict = 0.5;
+//
+//            aps_state.final_MTF_m_p = (metrics.MTF * (1 - K_predict) + K_predict * aps_state.prediction);
 
-            if (AUTO_DELTA == 1)
-                aps_delta = settings.APS_DELTA + fabs(metrics.Wg_1000 * settings.K_delta);
-            //смешиваем измеренный и спрогнозированный углы в пропорции с коэфф K_predict
-            //и вычитаем разницу полученную на стоянке
-            if (fabs(metrics.MTF - aps_state.prediction) > aps_delta)
-                K_predict = 1;
-            else
-                K_predict = 0.5;
+            // Проталкиваем буферы sin и cos
+            // (можно использовать memmove для эффективности, но цикл for более нагляден)
+            for (int i = 0; i < N - 1; i++) {
+                aps_state.sin_mtf_buffer[i] = aps_state.sin_mtf_buffer[i + 1];
+                aps_state.cos_mtf_buffer[i] = aps_state.cos_mtf_buffer[i + 1];
+            }
 
-            aps_state.final_MTF_m_p = (metrics.MTF * (1 - K_predict) + K_predict * aps_state.prediction);
+            // Записываем в хвост новые значения
+            aps_state.sin_mtf_buffer[N - 1] = sin(metrics.MTF);
+            aps_state.cos_mtf_buffer[N - 1] = cos(metrics.MTF);
+
+            // Вычисляем K (как и раньше)
+            int K = static_cast<int>(fabs(HISTORY_ANGLE / metrics.Wg_1000));
+            if (K < 3) K = 3;       // Для параболы нужно минимум 3 точки
+            if (K > N) K = N;
+
+            // Вычисляем задержку
+            const float ma_filter_lag_samples = (MA_WINDOW_SIZE - 1) / 2.0f;
+
+            // --- Предсказываем КАЖДУЮ компоненту ОТДЕЛЬНО ---
+            float sin_pred = predict_component(aps_state.sin_mtf_buffer, N, K, ma_filter_lag_samples, S_x[K]);
+            float cos_pred = predict_component(aps_state.cos_mtf_buffer, N, K, ma_filter_lag_samples, S_x[K]);
+
+            // --- Восстанавливаем угол из предсказанных компонентов ---
+            aps_state.prediction = atan2(sin_pred, cos_pred);
+
+            float diff = bulletproofWrapToPi(aps_state.prediction - metrics.MTF);
+            float K_predict = (fabs(diff) > settings.APS_DELTA) ? 1.0f : 0.5f;
+            aps_state.final_MTF_m_p = bulletproofWrapToPi(metrics.MTF + diff * K_predict);
 
             static int8_t saved_idx = 0;
 
@@ -472,12 +574,12 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
             {
                 if ((aps_state.final_MTF_m_p > aps_state.aps_point_arr[idx] - aps_delta
                     && aps_state.final_MTF_m_p < aps_state.aps_point_arr[idx] + aps_delta)
-                    && saved_idx != idx
-                    && ((std::abs(saved_idx - idx) == 1) || (std::abs(saved_idx - idx) == 15)))
+                    && saved_idx != idx)
+//                    && ((std::abs(saved_idx - idx) == 1) || (std::abs(saved_idx - idx) == 15)))
                 {
                     saved_idx = idx;
                     G_red_led::toggle();
-                    print(g_dbg_uart, "APS ", idx, ": ", aps_state.prediction, ", ", aps_state.final_MTF_m_p, ", ", aps_state.aps_point_arr[idx], ", ", aps_delta);
+                    print(g_dbg_uart, "APS ", idx, "-> pre:", aps_state.prediction, ", mtf:", metrics.MTF, ", fin:", aps_state.final_MTF_m_p, ", K:", K_predict, ", ", aps_state.aps_point_arr[idx], "(+/-", aps_delta, ")");
                     break;
                 }
             }
@@ -486,10 +588,12 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
 //                && aps_state.final_MTF_m_p < aps_state.aps_point_arr[aps_state.aps_idx] + aps_delta)
 //                || aps_state.interrupt_by_angle_path == true) //попадание в вилку
 //            {
+//                print(g_dbg_uart, "APS ", aps_state.aps_idx, ": ", aps_state.prediction, ", ", aps_state.final_MTF_m_p, ", ", aps_state.aps_point_arr[aps_state.aps_idx], ", ", aps_delta);
 //                aps_state.aps_idx = (aps_state.aps_idx + 1) & (16 - 1);
 //                G_red_led::toggle();
 //            }
         i_filter = (i_filter + 1) & (MA_WINDOW_SIZE - 1);
+        if ((i_filter & (MA_WINDOW_SIZE - 1)) == 0) G_green_led::toggle();
     } //end if not idle
 }
 

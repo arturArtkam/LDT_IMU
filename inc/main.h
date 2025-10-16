@@ -78,6 +78,7 @@ struct Set
    uint32_t N = 128u;
    uint32_t K = 128u;
    uint32_t AUTO_DELTA = 0u;
+   int8_t ROT = -1;
    uint32_t INTERRUPT_BY_ANGLE_PATH = 0u;
    uint16_t MOVEMENT_CMP_VALUE = 300u;
    float W_MIN = 3.14f; // рад/с
