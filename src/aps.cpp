@@ -41,9 +41,9 @@ struct Vec M_Data[MA_BUFFER_SIZE];
 struct Vec W_Data[MA_BUFFER_SIZE];
 
 //для калибровок
-struct Cal G_offset_sens = { 3909340, 3912131, 3944069, 1, 0, 0, 0, 1, 0, 0, 0, 1 },
+struct Cal G_offset_sens = { 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1 },
            M_offset_sens = { 0, 0, 0, 0.157f, 0, 0, 0, 0.157f, 0, 0, 0, 0.157f },
-           W_offset_sens = { 0, 0, 0, 0.001221726, 0, 0, 0, 0.001221726, 0, 0, 0, 0.001221726 }; //rad per digit
+           W_offset_sens = { 0, 0, 0, 0.001221726f, 0, 0, 0, 0.001221726f, 0, 0, 0, 0.001221726f }; //rad per digit
 
 //           G_offset_sens_add = { 0,0,0,1,0,0,0,1,0,0,0,1 },
 //           M_offset_sens_add = { 0,0,0,1,0,0,0,1,0,0,0,1 },
@@ -340,21 +340,21 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
 
         /* прибавляем обновленное  значение i ячейки массива к сумме всех значений окна скользящего среднего */
         metrics.G_ma = vctr_mltp_n(1.0 / MA_WINDOW_SIZE, G_Summa);
-        metrics.M_ma = vctr_mltp_n(-1.0 / MA_WINDOW_SIZE, M_Summa);
+        metrics.M_ma = vctr_mltp_n(1.0 / MA_WINDOW_SIZE, M_Summa);
         metrics.W_ma = vctr_mltp_n(1.0 / MA_WINDOW_SIZE, W_Summa);
 
-        metrics.G = metrics.G_ma;
-        metrics.M = metrics.M_ma;
-        metrics.W = metrics.W_ma;
+//        metrics.G = metrics.G_ma;
+//        metrics.M = metrics.M_ma;
+//        metrics.W = metrics.W_ma;
 
 //        if (device_state == STATE_NORMAL)
 //        {
             //окончательные калибровки
             //теперь вычитаем offset и умножаем на матрицу, где главная диагональ - это масштабы осей,
             //XY=YX,XZ=ZX,ZY=YZ - малые диагонали, отвечающие за неортогонaльность осей.
-///            G = callibrate(G, G_offset_sens);
-            metrics.M = callibrate(metrics.M, M_offset_sens);
-            metrics.W = callibrate(metrics.W, W_offset_sens);
+            metrics.G = callibrate(metrics.G_ma, G_offset_sens);
+            metrics.M = callibrate(metrics.M_ma, M_offset_sens);
+            metrics.W = callibrate(metrics.W_ma, W_offset_sens);
 
             metrics.W_g = metrics.W.Z;
 

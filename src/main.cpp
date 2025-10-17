@@ -418,7 +418,7 @@ int main()
                 DELAY_US(10);
                 Ais2ih::Xyz_data a_res = {0, 0, 0};
                 g_axel.read_all_axes(&a_res);
-                axel = {-(float)a_res.a_x, -(float)a_res.a_z, (float)a_res.a_y};
+                axel = {(float)a_res.a_x, (float)a_res.a_z, (float)a_res.a_y};
 
                 L3gd20h::Xyz_data w_res = {0, 0, 0};
                 g_gyro.read_all_axes(&w_res);
