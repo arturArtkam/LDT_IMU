@@ -249,37 +249,6 @@ CalculatedData metrics;
 // —осто€ние основного алгоритма
 ApsAlgorithmState aps_state;
 
-void fill_aps_buff()
-{
-    //вычисл€ем сразу все 16 угловых положений дл€ выдачи прерывани€ на измерени€
-    // и приводим их значени€ к интервалу от -PI до PI исключа€ PI (по правилам atan2)
-    if (settings.ROT == -1)
-    {
-        for (int idx = 0; idx < 16; idx++)
-        {
-            aps_state.aps_point_arr[15 - idx] = aps_state.start_APS + idx * M_PI / 8.0f;
-            while (aps_state.aps_point_arr[15 - idx] >= M_PI) aps_state.aps_point_arr[15 - idx] -= 2 * M_PI;
-        }
-    }
-    else if (settings.ROT == 1)
-    {
-        for (int idx = 0; idx < 16; idx++)
-        {
-            aps_state.aps_point_arr[idx] = aps_state.start_APS - idx * M_PI / 8.0f;
-            while (aps_state.aps_point_arr[idx] <= -M_PI) aps_state.aps_point_arr[idx] += 2 * M_PI;
-        }
-    }
-    else
-    {
-        while (1);
-    }
-
-    for (int idx = 0; idx < 16; idx++)
-    {
-        print(g_dbg_uart, "idx ", idx, " ", aps_state.aps_point_arr[idx]);
-    }
-}
-
 /**
  * @brief ѕриводит угол (в радианах) к каноническому диапазону [-PI, PI].
  *        »спользует fmod и обрабатывает все крайние случаи.
@@ -301,6 +270,37 @@ float wrap_to_pi(float angle_rad)
     }
 
     return remainder - M_PI;
+}
+
+void fill_aps_buff()
+{
+    //вычисл€ем сразу все 16 угловых положений дл€ выдачи прерывани€ на измерени€
+    // и приводим их значени€ к интервалу от -PI до PI исключа€ PI (по правилам atan2)
+    if (settings.ROT == -1)
+    {
+        for (int idx = 0; idx < 16; idx++)
+        {
+            aps_state.aps_point_arr[15 - idx] = wrap_to_pi(aps_state.start_APS + idx * M_PI / 8.0f);
+//            while (aps_state.aps_point_arr[15 - idx] >= M_PI) aps_state.aps_point_arr[15 - idx] -= 2 * M_PI;
+        }
+    }
+    else if (settings.ROT == 1)
+    {
+        for (int idx = 0; idx < 16; idx++)
+        {
+            aps_state.aps_point_arr[idx] = wrap_to_pi(aps_state.start_APS - idx * M_PI / 8.0f);
+//            while (aps_state.aps_point_arr[idx] <= -M_PI) aps_state.aps_point_arr[idx] += 2 * M_PI;
+        }
+    }
+    else
+    {
+        while (1);
+    }
+
+    for (int idx = 0; idx < 16; idx++)
+    {
+        print(g_dbg_uart, "idx ", idx, " ", aps_state.aps_point_arr[idx]);
+    }
 }
 
 void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
