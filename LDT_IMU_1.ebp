@@ -196,13 +196,13 @@
 		<Unit filename="LL\Src\stm32g4xx_ll_spi.c">
 			<Option compilerVar="CC" />
 		</Unit>
+		<Unit filename="src\aps.cpp">
+			<Option compilerVar="CC" />
+		</Unit>
 		<Unit filename="src\cal_and_predict.cpp">
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="src\linalg.cpp">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="src\mag_isr.cpp">
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="src\main.cpp">

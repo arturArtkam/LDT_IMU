@@ -426,6 +426,8 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
             {
                 aps_state.no_mov_delay_tim = 0;
                 aps_state.is_moving = false;
+                print(g_dbg_uart, "G_M_angle: ", wrap_to_pi(metrics.angle_aps_m - metrics.angle_aps));
+                print(g_dbg_uart, "GX:", metrics.G.X, ", GY:", metrics.G.Y, ", GZ:", metrics.G.Z, ", MX:", metrics.M.X, ", MY:", metrics.M.Y, ", MZ:", metrics.M.Z);
             }
 
             //вычисляем углы
