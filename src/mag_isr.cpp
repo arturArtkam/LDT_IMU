@@ -16,8 +16,8 @@ constexpr size_t PREDICTION_BUFFER_SIZE = 128;
 //float Wg_1000 = 0;
 
 //extern uint64_t Now;
-extern uint64_t turnStartTime;
-extern float aps_arr[17];
+//extern uint64_t turnStartTime;
+//extern float aps_arr[17];
 //float aps_m_arr[17];
 //extern uartPrintMode uPm;
 //Aps_state apsMMode;
@@ -64,45 +64,45 @@ float abc[3] = {0.0f};//коэфф. аппрох. полинома 2го порядка abc[0]*х*х + abc[1]*
 int N = 128, K = 128;
 float K_predict = 0.5;
 extern float S_x[130][5];//предварительно посчитанные коэфф для прогноза
-float aps_point = 0;
+//float aps_point = 0;
 //float aps_point_arr[16] = {0.0f};
 //float G_M_angle = 0;
 //uint16_t aps_idx = 0;
 //float sector = M_PI / 8;
 //float idx;
-float rot = 1;
+//float rot = 1;
 //volatile uint32_t  tim = 0, pulse = 0, beth_pulse_delay_tim = 0, no_mov_delay_tim = 0;
 //volatile float angle_path_wg = 0;
 //volatile bool start_circle;
-float MA_delay = 0;
+//float MA_delay = 0;
 //volatile float delay = 0;
-uint16_t error_sector_msg = 0;
-uint16_t error_msg = 0;
+//uint16_t error_sector_msg = 0;
+//uint16_t error_msg = 0;
 //bool interrupt_by_angle_path = false;
 
 //------------------------------------------------------------------------------------
 // для циклограммы направленного прибора
-uint16_t aps_idx_out;
+//uint16_t aps_idx_out;
 //extern CYCLOGRAM cyclogram_state;
 //extern uint16_t tx_work_time_units;
 //extern uint16_t N_Tx;
 //uint16_t next_tx_start_units;
 //extern uint16_t operate_byte;
 //extern uint16_t freq;
-int16_t tx_work_units_cntr;
+//int16_t tx_work_units_cntr;
 
 //bool last_Tx_is_sent;
 //extern bool finish;
 //extern uint16_t next_Tx_N ;
 
-void variables_reset(void)
-{
-    tx_work_units_cntr = -1;
-//    next_tx_start_units = 0;
-//    last_Tx_is_sent = false;
-//    finish = false;
-//    next_Tx_N = 0;
-}
+//void variables_reset(void)
+//{
+//    tx_work_units_cntr = -1;
+////    next_tx_start_units = 0;
+////    last_Tx_is_sent = false;
+////    finish = false;
+////    next_Tx_N = 0;
+//}
 
 
 //constexpr size_t MLD_BUFFER_SIZE = 32;
@@ -282,40 +282,32 @@ void fill_aps_buff()
 
 /**
  * @brief Приводит угол (в радианах) к каноническому диапазону [-PI, PI].
- *        Это необходимо для корректной работы с циклическими величинами.
+ *        Использует fmod и обрабатывает все крайние случаи.
  * @param angle_rad Угол для "заворачивания".
  * @return Угол в диапазоне [-PI, PI].
  */
-float wrapToPi(float angle_rad) {
-    while (angle_rad > M_PI) {
-        angle_rad += 2 * M_PI;
-    }
-    while (angle_rad <= -M_PI) {
-        angle_rad -= 2 * M_PI;
-    }
-    return angle_rad;
-}
-
-/**
- * @brief Самая надежная функция для приведения угла к диапазону [-PI, PI].
- *        Использует fmod и обрабатывает все крайние случаи.
- */
-float bulletproofWrapToPi(float angle_rad) {
+float wrap_to_pi(float angle_rad)
+{
     // Сразу отсекаем NaN и inf
-    if (isnan(angle_rad) || isinf(angle_rad)) {
+    if (isnan(angle_rad) || isinf(angle_rad))
+    {
         return 0.0f;
     }
 
     float remainder = fmod(angle_rad + M_PI, 2.0f * M_PI);
-    if (remainder < 0.0f) {
+    if (remainder < 0.0f)
+    {
         remainder += 2.0f * M_PI;
     }
+
     return remainder - M_PI;
 }
 
 void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
 {
 //    static uint16_t i_filter = 0;
+    G_green_led::hi();
+
     N = settings.N;
     K = settings.K;
     K_predict = settings.K_PREDICT;
@@ -401,8 +393,8 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
             for (int i = 0; i < MLD_WINDOW_SIZE; i++)
             {
 //                aver_modul_m +=  m_modul_buff[i];
-                aver_modul_g +=  g_modul_buff[i];
-                aver_modul_w +=  w_modul_buff[i];
+                aver_modul_g += g_modul_buff[i];
+                aver_modul_w += w_modul_buff[i];
             }
 //            aver_modul_m /= MLD_WINDOW_SIZE;
             aver_modul_g /= MLD_WINDOW_SIZE;
@@ -448,7 +440,7 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
             }
 
             /* Расчет MTF (Magnetic Tool Face - Угол установки отклонителя) */
-            metrics.MTF = bulletproofWrapToPi(metrics.angle_aps_m); // - metrics.G_M_angle;
+            metrics.MTF = wrap_to_pi(metrics.angle_aps_m); // - metrics.G_M_angle;
 //            /* Нормализация MTF в диапазон (-PI, PI] */
 //            if (settings.ROT == -1)
 //            {
@@ -540,7 +532,8 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
 
             // Проталкиваем буферы sin и cos
             // (можно использовать memmove для эффективности, но цикл for более нагляден)
-            for (int i = 0; i < N - 1; i++) {
+            for (int i = 0; i < N - 1; i++)
+            {
                 aps_state.sin_mtf_buffer[i] = aps_state.sin_mtf_buffer[i + 1];
                 aps_state.cos_mtf_buffer[i] = aps_state.cos_mtf_buffer[i + 1];
             }
@@ -564,9 +557,9 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
             // Восстанавление угла из предсказанных компонент
             aps_state.prediction = atan2(sin_pred, cos_pred);
 
-            float diff = bulletproofWrapToPi(aps_state.prediction - metrics.MTF);
+            float diff = wrap_to_pi(aps_state.prediction - metrics.MTF);
             float K_predict = (fabs(diff) > settings.APS_DELTA) ? 1.0f : 0.5f;
-            aps_state.final_MTF_m_p = bulletproofWrapToPi(metrics.MTF + diff * K_predict);
+            aps_state.final_MTF_m_p = wrap_to_pi(metrics.MTF + diff * K_predict);
 
             static int8_t saved_idx = 0;
 
@@ -593,7 +586,8 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
 //                G_red_led::toggle();
 //            }
         i_filter = (i_filter + 1) & (MA_WINDOW_SIZE - 1);
-        if ((i_filter & (MA_WINDOW_SIZE - 1)) == 0) G_green_led::toggle();
+//        if ((i_filter & (MA_WINDOW_SIZE - 1)) == 0) G_green_led::toggle();
+        G_green_led::lo();
     } //end if not idle
 }
 
