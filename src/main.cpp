@@ -68,7 +68,7 @@ void SystemClock_Config_LL()
     // APB2 prescaler = /1
     LL_RCC_SetAPB2Prescaler(LL_RCC_APB2_DIV_1);
 
-    /* 6. Выбор PLL как источника системных часов (SYSCLK) */
+    // --- Выбор PLL как источника системных часов (SYSCLK) ---
     LL_RCC_SetSysClkSource(LL_RCC_SYS_CLKSOURCE_PLL);
 
     // Ожидаем, пока системные часы переключатся на PLL
