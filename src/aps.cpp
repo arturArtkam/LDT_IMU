@@ -33,7 +33,12 @@ float aps_delta = M_PI / 360; // - 1 градус (с какой точностью определяется моме
 // для сырых, после скользящего среднего и калиброванных данных и скользящего среднего
 //int Wxyz[3];
 //struct Vec G_ma, M_ma, W_ma, G, M, W ;
-struct Vec G_Summa = {0, 0, 0}, M_Summa = {0, 0, 0}, W_Summa = {0, 0, 0}, G_Data[MA_BUFFER_SIZE], M_Data[MA_BUFFER_SIZE], W_Data[MA_BUFFER_SIZE] ;
+struct Vec G_Summa = {0, 0, 0};
+struct Vec M_Summa = {0, 0, 0};
+struct Vec W_Summa = {0, 0, 0};
+struct Vec G_Data[MA_BUFFER_SIZE];
+struct Vec M_Data[MA_BUFFER_SIZE];
+struct Vec W_Data[MA_BUFFER_SIZE];
 
 //для калибровок
 struct Cal G_offset_sens = { 3909340, 3912131, 3944069, 1, 0, 0, 0, 1, 0, 0, 0, 1 },
@@ -183,9 +188,9 @@ void read_cal_and_settings()
 {
 //   FLASH_ReadCal(&G_offset_sens, &M_offset_sens, &W_offset_sens);
 //   FLASH_ReadSet(&settings);
-    G_fram::read_buf(&G_offset_sens, Fram_markup::G_OFFSET_ADDR, sizeof(Cal));
-    G_fram::read_buf(&M_offset_sens, Fram_markup::M_OFFSET_ADDR, sizeof(Cal));
-    G_fram::read_buf(&W_offset_sens, Fram_markup::W_OFFSET_ADDR, sizeof(Cal));
+    G_fram::read_buf(&G_offset_sens, Fram_markup::G_OFFSET_ADDR, sizeof(G_offset_sens));
+    G_fram::read_buf(&M_offset_sens, Fram_markup::M_OFFSET_ADDR, sizeof(M_offset_sens));
+    G_fram::read_buf(&W_offset_sens, Fram_markup::W_OFFSET_ADDR, sizeof(W_offset_sens));
     G_fram::read_buf(&settings, Fram_markup::SETTINGS_ADDR, sizeof(settings));
 
     if (isnan(G_offset_sens.offset.X)) G_offset_sens.offset.X = 3909340;
@@ -281,7 +286,6 @@ void fill_aps_buff()
         for (int idx = 0; idx < 16; idx++)
         {
             aps_state.aps_point_arr[15 - idx] = wrap_to_pi(aps_state.start_APS + idx * M_PI / 8.0f);
-//            while (aps_state.aps_point_arr[15 - idx] >= M_PI) aps_state.aps_point_arr[15 - idx] -= 2 * M_PI;
         }
     }
     else if (settings.ROT == 1)
@@ -289,7 +293,6 @@ void fill_aps_buff()
         for (int idx = 0; idx < 16; idx++)
         {
             aps_state.aps_point_arr[idx] = wrap_to_pi(aps_state.start_APS - idx * M_PI / 8.0f);
-//            while (aps_state.aps_point_arr[idx] <= -M_PI) aps_state.aps_point_arr[idx] += 2 * M_PI;
         }
     }
     else
