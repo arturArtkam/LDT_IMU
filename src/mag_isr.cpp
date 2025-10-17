@@ -584,8 +584,7 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
 //                G_red_led::toggle();
 //            }
         i_filter = (i_filter + 1) & (MA_WINDOW_SIZE - 1);
-//        if ((i_filter & (MA_WINDOW_SIZE - 1)) == 0) G_green_led::toggle();
-        G_green_led::lo();
+        if ((i_filter & (MA_WINDOW_SIZE - 1)) == 0) G_green_led::toggle();
     } //end if not idle
 }
 

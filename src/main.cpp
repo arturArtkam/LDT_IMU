@@ -3,18 +3,18 @@
 
 void SystemClock_Config_LL()
 {
-    /* 1. Настройка регулятора напряжения и включение тактирования PWR */
+    // --- Настройка регулятора напряжения и включение тактирования PWR ---
     LL_APB1_GRP1_EnableClock(LL_APB1_GRP1_PERIPH_PWR);
     LL_PWR_SetRegulVoltageScaling(LL_PWR_REGU_VOLTAGE_SCALE1);
 
-    /* 2. Включение внешнего резонатора (HSE) */
+    // --- Включение внешнего резонатора (HSE) ---
     LL_RCC_HSE_Enable();
     // Ожидаем, пока HSE будет готов
     while (LL_RCC_HSE_IsReady() != 1)
     {
         // Здесь можно добавить таймаут и вызов Error_Handler()
     }
-    /* 3. Настройка PLL */
+    // --- Настройка PLL ---
     // Убедимся, что PLL выключен, перед его настройкой
     LL_RCC_PLL_Disable();
     while(LL_RCC_PLL_IsReady() != 0)
@@ -52,7 +52,7 @@ void SystemClock_Config_LL()
         // Таймаут и Error_Handler()
     }
 
-    /* 4. Увеличение задержки Flash перед увеличением частоты */
+    // --- Увеличение задержки Flash перед увеличением частоты ---
     // Это КРИТИЧЕСКИ ВАЖНО сделать до переключения на PLL на высокой частоте
     LL_FLASH_SetLatency(LL_FLASH_LATENCY_4);
     while (LL_FLASH_GetLatency() != LL_FLASH_LATENCY_4)
@@ -60,7 +60,7 @@ void SystemClock_Config_LL()
         // Таймаут и Error_Handler()
     }
 
-    /* 5. Настройка делителей для шин AHB, APB1, APB2 */
+    // --- Настройка делителей для шин AHB, APB1, APB2 ---
     // AHB prescaler = /1
     LL_RCC_SetAHBPrescaler(LL_RCC_SYSCLK_DIV_1);
     // APB1 prescaler = /1
@@ -96,12 +96,6 @@ L3gd20h g_gyro;
 Ads ads131;
 
 float S_x[130][5] = {0.0f, 0.0f};
-extern "C" void EXTI2_IRQHandler(void)
-{
-    LL_EXTI_ClearFlag_0_31(LL_EXTI_LINE_2);
-//    g_mag.Measure_XYZ_WithAutoSR();
-
-}
 
 static bool Powered()
 {
