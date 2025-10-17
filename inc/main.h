@@ -24,18 +24,6 @@ typedef Pin<PORTB, 11, LL_GPIO_MODE_OUTPUT, LL_GPIO_SPEED_FREQ_MEDIUM> G_pin_int
 #include "linalg.h"
 #include "cal_and_predict.h"
 
-#define bitRead(value, bit) (((value) >> (bit)) & 0x01)
-#define bitSet(value, bit) ((value) |= (1UL << (bit)))
-#define bitClear(value, bit) ((value) &= ~(1UL << (bit)))
-#define bitWrite(value, bit, bitvalue) (bitvalue ? bitSet(value, bit) : bitClear(value, bit))
-
-//#define MAX_W_STOP 1
-
-//typedef Pin<PORTA, 15, LL_GPIO_MODE_OUTPUT, LL_GPIO_SPEED_FREQ_MEDIUM, LL_GPIO_OUTPUT_PUSHPULL, LL_GPIO_PULL_NO> G_red_led;
-//typedef Pin<PORTB, 3, LL_GPIO_MODE_OUTPUT, LL_GPIO_SPEED_FREQ_MEDIUM, LL_GPIO_OUTPUT_PUSHPULL, LL_GPIO_PULL_NO> G_green_led;
-//typedef Pin<PORTB, 11, LL_GPIO_MODE_INPUT, LL_GPIO_SPEED_FREQ_MEDIUM> G_pin_int;
-
-//typedef Delay_tim<TIM::TIM_3> G_delay;
 #define DELAY_MS(ms) g_Delay::wait_ms(ms)
 #define DELAY_US(us) g_Delay::wait_us(us)
 

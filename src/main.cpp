@@ -250,7 +250,7 @@ void spi_safe_disable(SPI_TypeDef* SPIx)
 }
 
 /**
- * @brief Ќастраивает SPI дл€ работы с акселерометром AIS2IH.
+ * @brief Ќастраивает SPI дл€ работы с акселерометром AIS2IH и гироскопом L3GD20H.
  */
 void setup_spi_for_accelerometer()
 {
