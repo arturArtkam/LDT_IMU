@@ -349,12 +349,6 @@ int main()
         }
     }
 
-//    while (!g_axel.check_whoiam())
-//    {
-//        G_red_led::toggle();
-//        DELAY_MS(25);
-//    }
-
     if (!g_gyro.init())
     {
         while (1)
@@ -384,6 +378,7 @@ int main()
 
     Vec mag = {0.0f, 0.0f, 0.0f};
     Vec axel = {0.0f, 0.0f, 0.0f};
+    Vec gyro = {0.0f, 0.0f, 0.0f};
 
     while (1)
     {
@@ -426,36 +421,15 @@ int main()
 
                 mag = {(float)hmc[0], (float)hmc[1], -(float)hmc[2]};
 
-//                SPI1->CR1 &= ~SPI_CR1_SPE;
-//                SPI1->SR = 0;
-//                LL_SPI_SetClockPolarity(SPI1, LL_SPI_POLARITY_HIGH);
-//                SPI1->CR1 |= SPI_CR1_SPE;
-//
-//                while (!g_axel.check_whoiam())
-//                {
-//                    while (1)
-//                    {
-//                        G_red_led::toggle();
-//                        DELAY_MS(25);
-//                    }
-//                }
                 DELAY_US(10);
-                Ais2ih::Xyz_data a_res = {0, 0, 0};//g_axel.read_xyz();
+                Ais2ih::Xyz_data a_res = {0, 0, 0};
                 g_axel.read_all_axes(&a_res);
                 axel = {(float)a_res.a_x, (float)a_res.a_z, (float)a_res.a_y};
-//                print(dbg_uart, mag.X, ", ", mag.Y, ", ", mag.Z, ", ", axel.X, ", ", axel.Y, ", ", axel.Z);
 
-//                if ((cnt & 7) == 0)
-//                {
-//
-//                Ais2ih::Xyz_data res = g_axel.read_xyz();
-//
-//                axel = {(float)res.a_x, (float)res.a_y, (float)res.a_z}; // {0.0f, 0.0f, 0.0f}; //{(float)res.a_x, (float)res.a_y, (float)res.a_z};
-//                }
                 L3gd20h::Xyz_data w_res = {0, 0, 0};
                 g_gyro.read_all_axes(&w_res);
                 // Ось X гироскопа совпадает с осью Z прибора
-                Vec gyro = {(float)w_res.w_z, (float)w_res.w_y, (float)w_res.w_x};
+                gyro = {(float)w_res.w_z, (float)w_res.w_y, (float)w_res.w_x};
                 run_aps(axel, mag, gyro);
             }
 

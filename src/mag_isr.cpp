@@ -306,8 +306,6 @@ float wrap_to_pi(float angle_rad)
 void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
 {
 //    static uint16_t i_filter = 0;
-    G_green_led::hi();
-
     N = settings.N;
     K = settings.K;
     K_predict = settings.K_PREDICT;
