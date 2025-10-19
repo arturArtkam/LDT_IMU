@@ -554,8 +554,8 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
             const float ma_filter_lag_samples = (MA_WINDOW_SIZE - 1) / 2.0f;
 
             // Предсказание каждой компоненты отдельно
-            float sin_pred = predict_component(aps_state.sin_mtf_buffer, N, K, ma_filter_lag_samples, S_x[K]);
-            float cos_pred = predict_component(aps_state.cos_mtf_buffer, N, K, ma_filter_lag_samples, S_x[K]);
+            float sin_pred = predict_component(aps_state.sin_mtf_buffer, N, K, ma_filter_lag_samples);
+            float cos_pred = predict_component(aps_state.cos_mtf_buffer, N, K, ma_filter_lag_samples);
 
             // Восстанавление угла из предсказанных компонент
             aps_state.prediction = atan2(sin_pred, cos_pred);

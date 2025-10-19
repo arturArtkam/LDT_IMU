@@ -115,6 +115,92 @@ float predict_component(const float* history_buffer, int buffer_size, int K, flo
     return prediction;
 }
 
+/**
+ * @brief Универсальная и численно стабильная "ручная" реализация МНК для полинома 2-й степени.
+ *
+ * Эта функция является прямым переводом работающей Python-версии
+ * predict_component_coordinate_independent. Она аппроксимирует историю
+ * компоненты (sin или cos) и предсказывает ее значение в будущем,
+ * компенсируя задержку. Работает путем сдвига системы координат,
+ * что делает ее независимой от абсолютных значений X.
+ *
+ * @param history_buffer Указатель на начало буфера с историей значений (например, sin_mtf_buffer).
+ * @param buffer_size    Общий размер буфера (N).
+ * @param K              Размер окна для аппроксимации (количество последних точек).
+ * @param lag_samples    Количество отсчетов, на которое нужно предсказать вперед.
+ * @return               Предсказанное значение компоненты.
+ */
+float predict_component(const float* history_buffer, int buffer_size, int K, float lag_samples)
+{
+    // --- 1. Проверки на корректность ---
+    if (K <= 2) {
+        // Недостаточно точек для аппроксимации параболой, возвращаем последнее известное значение
+        return history_buffer[buffer_size - 1];
+    }
+
+    // --- 2. Определяем окно данных для анализа и сдвигаем систему координат ---
+    // Нам нужны последние K значений из буфера истории
+    const float* y = history_buffer + (buffer_size - K);
+    // Среднее значение для x=[0, 1, ..., K-1] всегда равно (K-1)/2.
+    // Это наш сдвиг для центрирования данных.
+    const float x_mean = static_cast<float>(K - 1) / 2.0f;
+
+    // --- 3. Рассчитываем необходимые суммы в НОВОЙ (сдвинутой) системе координат ---
+    // Все 5 сумм вычисляются за один проход по данным.
+    float sx2_prime = 0.0f;
+    float sx4_prime = 0.0f;
+    float sy = 0.0f;
+    float sx_prime_y = 0.0f;
+    float sx2_prime_y = 0.0f;
+
+    for (int i = 0; i < K; ++i)
+    {
+        // x_prime - это относительная координата x, сдвинутая к центру
+        const float x_prime_i = static_cast<float>(i) - x_mean;
+        const float y_i = y[i];
+        const float x_prime_i_sq = x_prime_i * x_prime_i;
+
+        sx2_prime += x_prime_i_sq;
+        sx4_prime += x_prime_i_sq * x_prime_i_sq; // (x_prime^2)^2 = x_prime^4
+        sy += y_i;
+        sx_prime_y += x_prime_i * y_i;
+        sx2_prime_y += x_prime_i_sq * y_i;
+    }
+
+    // --- 4. Решаем упрощенную систему уравнений для коэффициентов a', b', c' ---
+    // Коэффициент b' (линейный член в сдвинутой системе) находится сразу
+    if (std::fabs(sx2_prime) < 1e-9f)  // Защита от деления на ноль
+    {
+        return history_buffer[buffer_size - 1];
+    }
+    const float b_prime = sx_prime_y / sx2_prime;
+
+    // Для a' и c' решаем систему 2x2. Сначала находим ее определитель.
+    const float det = static_cast<float>(K) * sx4_prime - sx2_prime * sx2_prime;
+    if (std::fabs(det) < 1e-9f)
+    {
+        return history_buffer[buffer_size - 1];
+    }
+
+    // Находим c' (свободный член) и a' (квадратичный член) по формуле Крамера
+    const float c_prime = (sx4_prime * sy - sx2_prime * sx2_prime_y) / det;
+    const float a_prime = (static_cast<float>(K) * sx2_prime_y - sx2_prime * sy) / det;
+
+    // --- 5. Делаем предсказание ---
+    // Целевая точка в старой, абсолютной системе координат
+    const float predict_at_point_x = static_cast<float>(K) + lag_samples;
+
+    // Переводим ее в новую, относительную систему координат
+    const float predict_at_point_x_prime = predict_at_point_x - x_mean;
+
+    // Вычисляем предсказание по найденной параболе в сдвинутой системе
+    const float prediction = a_prime * predict_at_point_x_prime * predict_at_point_x_prime +
+                           b_prime * predict_at_point_x_prime +
+                           c_prime;
+
+    return prediction;
+}
+
 //struct Cal add_cal(struct Cal first, struct Cal second) {
 //    struct Cal result;
 //    result.offset = vctr_summ(first.offset , (mtrx_vctr_mltp(mtrx_1(first.sens), second.offset)));

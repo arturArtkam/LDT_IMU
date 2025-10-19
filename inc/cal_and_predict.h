@@ -28,6 +28,7 @@ struct Cal
 Vec callibrate(Vec Data, Cal calib);
 float predict(float *abc, float *data, float S_x[5], int N);
 float predict_component(const float* history_buffer, int buffer_size, int K, float lag_samples, const float* s_x);
+float predict_component(const float* history_buffer, int buffer_size, int K, float lag_samples);
 void S_X(float S_x[5], int N);
 
 #endif /* CAL_AND_PREDICT_H_INCLUDED */
