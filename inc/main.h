@@ -63,7 +63,7 @@ struct Set
    uint32_t MLD_WINDOW_SIZE = 32u;
    uint32_t N = 128u;
    uint32_t K = 128u;
-   uint32_t AUTO_DELTA = 0u;
+   uint32_t AUTO_DELTA = 1u;
    int8_t ROT = -1;
    uint32_t INTERRUPT_BY_ANGLE_PATH = 0u;
    uint16_t MOVEMENT_CMP_VALUE = 300u;
