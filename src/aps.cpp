@@ -426,8 +426,8 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
             {
                 aps_state.no_mov_delay_tim = 0;
                 aps_state.is_moving = false;
-                print(g_dbg_uart, "G_M_angle: ", wrap_to_pi(metrics.angle_aps_m - metrics.angle_aps));
-                print(g_dbg_uart, "GX:", metrics.G.X, ", GY:", metrics.G.Y, ", GZ:", metrics.G.Z, ", MX:", metrics.M.X, ", MY:", metrics.M.Y, ", MZ:", metrics.M.Z);
+//                print(g_dbg_uart, "G_M_angle: ", wrap_to_pi(metrics.angle_aps_m - metrics.angle_aps));
+//                print(g_dbg_uart, "GX:", metrics.G.X, ", GY:", metrics.G.Y, ", GZ:", metrics.G.Z, ", MX:", metrics.M.X, ", MY:", metrics.M.Y, ", MZ:", metrics.M.Z);
             }
 
             //вычисляем углы
@@ -512,11 +512,14 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
 //            //omega = (MTF_buff[N - 5] - MTF_buff[N - 1]) / 4;
 //            //K = (int)fabs(history_angle / omega);
 //            K = (int)fabs(HISTORY_ANGLE / metrics.Wg_1000); //rad per 1mc
-//            MA_delay = metrics.Wg_1000 * MA_WINDOW_SIZE / 4.0; //rad угловая задержка на скользящем среднем зависит от скорости
+////            MA_delay = metrics.Wg_1000 * MA_WINDOW_SIZE / 4.0; //rad угловая задержка на скользящем среднем зависит от скорости
 //            if (K < 1) K = 1;
 //            if (K > N) K = N - 1;
+//            // Вычисление задержки
+//            const float ma_filter_lag_samples = (MA_WINDOW_SIZE - 1) / 2.0f;
 //            // подставляем хвост массива размера К в функцию для прогноза
-//            aps_state.prediction = predict(abc, &aps_state.mtf_buffer[N - K - 1], S_x[K], K);
+////            aps_state.prediction = predict(abc, &aps_state.mtf_buffer[N - K - 1], S_x[K], K);
+//            aps_state.prediction = predict_component(aps_state.mtf_buffer, N, K, ma_filter_lag_samples);
 //// --- конец следящего алгоритма ---
 //
 //            if (AUTO_DELTA == 1)
