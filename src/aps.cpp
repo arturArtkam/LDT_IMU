@@ -567,7 +567,7 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
                 aps_delta = settings.APS_DELTA + fabs(metrics.Wg_1000 * settings.K_delta);
 
             float diff = wrap_to_pi(aps_state.prediction - metrics.MTF);
-            float K_predict = (fabs(diff) > settings.APS_DELTA) ? 1.0f : 0.5f;
+            float K_predict = (fabs(diff) > aps_delta) ? 1.0f : 0.5f;
             aps_state.final_MTF_m_p = wrap_to_pi(metrics.MTF + diff * K_predict);
 
             static int8_t saved_idx = 0;
