@@ -134,14 +134,14 @@ void StandBy(AdcType& adc, bool fullStop)
 template <typename AdcType>
 void AddSyncFrameSetupADC(AdcType& adc)
 {
-    uint8_t cmdBuffer[14] = {0}; // Локальный буфер для формирования команды
+    uint8_t cmd_buffer[14] = {0};
 
     union rwreg_u rw;
     rw.wr.preambula = PRE_WREG;
     rw.wr.adr = 3;      // Адрес первого регистра для записи (CLOCK)
     rw.wr.cnt = 4;      // Количество регистров для записи - 1 (т.е. 4 регистра)
-    cmdBuffer[0] = rw.bt[1]; //h
-    cmdBuffer[1] = rw.bt[0]; //l
+    cmd_buffer[0] = rw.bt[1]; //h
+    cmd_buffer[1] = rw.bt[0]; //l
 
     union clockreg_u clk;
     clk.clk.ch0_en = 0;
@@ -154,31 +154,31 @@ void AddSyncFrameSetupADC(AdcType& adc)
     clk.clk.xtal_dis = 1;
     clk.clk.pwr = 2; // hi power hi resolution
     clk.clk.osr = 0b011;//7; // max filter setup
-    cmdBuffer[2] = 0; // Пустой байт
-    cmdBuffer[3] = clk.bt[1]; //h
-    cmdBuffer[4] = clk.bt[0]; //l
+    cmd_buffer[2] = 0; // Пустой байт
+    cmd_buffer[3] = clk.bt[1]; //h
+    cmd_buffer[4] = clk.bt[0]; //l
 
     union gain1reg_u g1;
     // g1.gain.pgagain1 = 1;
-    cmdBuffer[5] = 0; // Пустой байт
-    cmdBuffer[6] = g1.bt[1]; //h no gain
-    cmdBuffer[7] = g1.bt[0]; //l no gain
+    cmd_buffer[5] = 0; // Пустой байт
+    cmd_buffer[6] = g1.bt[1]; //h no gain
+    cmd_buffer[7] = g1.bt[0]; //l no gain
 
     union gain2reg_u g2;
     // g2.gain.pgagain4 = 1;
-    cmdBuffer[8] = 0; // Пустой байт
-    cmdBuffer[9] = g2.bt[1]; //h no gain
-    cmdBuffer[10] = g2.bt[0]; //l no gain
+    cmd_buffer[8] = 0; // Пустой байт
+    cmd_buffer[9] = g2.bt[1]; //h no gain
+    cmd_buffer[10] = g2.bt[0]; //l no gain
 
     union cfgreg_u cfg;
     cfg.cfg.gc_en = 1; // global chop
     cfg.cfg.gc_delay = 0b1000; //512 delay
-    cmdBuffer[11] = 0; // Пустой байт
-    cmdBuffer[12] = cfg.bt[1]; //h
-    cmdBuffer[13] = cfg.bt[0]; //l
+    cmd_buffer[11] = 0; // Пустой байт
+    cmd_buffer[12] = cfg.bt[1]; //h
+    cmd_buffer[13] = cfg.bt[0]; //l
 
     // Загружаем сформированную команду в буфер АЦП
-    adc.set_next_command(cmdBuffer, sizeof(cmdBuffer));
+    adc.set_next_command(cmd_buffer, sizeof(cmd_buffer));
     // Регистрируем команду без обратного вызова
     adc.AddSyncFrameUserCmd(1, nullptr);
 }
@@ -199,16 +199,16 @@ void AddSyncFrameSetupADC(AdcType& adc)
 template <typename AdcType, typename ComType>
 void AddSyncFrameReadRegsADC(AdcType& adc, ComType& com)
 {
-    uint8_t cmdBuffer[2] = {0};
+    uint8_t cmd_buffer[2] = {0};
 
     union rwreg_u rw;
     rw.wr.preambula = PRE_RREG;
     rw.wr.adr = READ_REGS_START;
     rw.wr.cnt = READ_REGS_CNT;
-    cmdBuffer[0] = rw.bt[1]; //h
-    cmdBuffer[1] = rw.bt[0]; //l
+    cmd_buffer[0] = rw.bt[1]; //h
+    cmd_buffer[1] = rw.bt[0]; //l
 
-    adc.setNextCommand(cmdBuffer, sizeof(cmdBuffer));
+    adc.setNextCommand(cmd_buffer, sizeof(cmd_buffer));
 
     // Создаем лямбда-функцию в качестве коллбэка
     // Она "захватывает" ссылки на adc и com, чтобы использовать их внутри
