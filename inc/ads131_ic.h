@@ -159,7 +159,7 @@ private:
         // »сточник: HSI (High-Speed Internal oscillator), который обычно работает на 16 ћ√ц.
         // ƒелитель: /2, чтобы получить 16 ћ√ц / 2 = 8 ћ√ц.
         // HSI включен по умолчанию после сброса, поэтому дополнительно его включать не нужно.
-        LL_RCC_ConfigMCO(LL_RCC_MCO1SOURCE_HSI, LL_RCC_MCO1_DIV_2);
+        LL_RCC_ConfigMCO(LL_RCC_MCO1SOURCE_HSE, LL_RCC_MCO1_DIV_1);
     }
 public:
     void spi_init()

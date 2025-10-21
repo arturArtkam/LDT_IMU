@@ -479,11 +479,11 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
                 metrics.angle_azm = metrics.angle_aps_m;
             }
 
-            metrics.angle_aps_deg = (metrics.angle_aps * 57.296);
-            metrics.angle_aps_m_deg = (metrics.angle_aps_m * 57.296);
-            metrics.angle_zen_deg = (metrics.angle_zen * 57.296);
-            metrics.angle_azm_deg = (metrics.angle_azm * 57.296);
-            metrics.MTF_deg = (metrics.MTF * 57.296);
+            metrics.angle_aps_deg = (metrics.angle_aps * 57.295779513f);
+            metrics.angle_aps_m_deg = (metrics.angle_aps_m * 57.295779513f);
+            metrics.angle_zen_deg = (metrics.angle_zen * 57.295779513f);
+            metrics.angle_azm_deg = (metrics.angle_azm * 57.295779513f);
+            metrics.MTF_deg = (metrics.MTF * 57.295779513f);
 
 // --- СЛЕДЯЩИЙ АЛГОРИТМ ---
 //Аппроксимирует предыдущие К точек скорректированного MTF (MTF_C) AX2+BX+C
@@ -548,6 +548,7 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
 //                aps_state.sin_mtf_buffer[i] = aps_state.sin_mtf_buffer[i + 1];
 //                aps_state.cos_mtf_buffer[i] = aps_state.cos_mtf_buffer[i + 1];
 //            }
+            G_green_led::hi();
             memmove(
                 aps_state.sin_mtf_buffer,           // 1. Указатель на начало (куда копируем)
                 &aps_state.sin_mtf_buffer[1],       // 2. Указатель на второй элемент (откуда копируем)
@@ -560,7 +561,7 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
                 &aps_state.cos_mtf_buffer[1],
                 sizeof(float) * (N - 1)
             );
-
+            G_green_led::lo();
             // Записываем в хвост новые значения
             aps_state.sin_mtf_buffer[N - 1] = sin(metrics.MTF);
             aps_state.cos_mtf_buffer[N - 1] = cos(metrics.MTF);
@@ -612,7 +613,7 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
 //                G_red_led::toggle();
 //            }
         i_filter = (i_filter + 1) & (MA_WINDOW_SIZE - 1);
-        if ((i_filter & (MA_WINDOW_SIZE - 1)) == 0) G_green_led::toggle();
+//        if ((i_filter & (MA_WINDOW_SIZE - 1)) == 0) G_green_led::toggle();
     } //end if not idle
 }
 

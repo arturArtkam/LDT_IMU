@@ -172,7 +172,7 @@ void AddSyncFrameSetupADC(AdcType& adc)
 
     union cfgreg_u cfg;
     cfg.cfg.gc_en = 1; // global chop
-    cfg.cfg.gc_delay = 0b11; //default delay
+    cfg.cfg.gc_delay = 0b1000; //512 delay
     cmdBuffer[11] = 0; // Пустой байт
     cmdBuffer[12] = cfg.bt[1]; //h
     cmdBuffer[13] = cfg.bt[0]; //l
@@ -376,7 +376,6 @@ int main()
 
     while (1)
     {
-
         if (ads131.checkDataReady())
         {
             setup_spi_for_adc();
@@ -424,7 +423,9 @@ int main()
                 g_gyro.read_all_axes(&w_res);
                 // Ось X гироскопа совпадает с осью Z прибора
                 gyro = {(float)w_res.w_z, (float)w_res.w_y, (float)w_res.w_x};
+//                G_green_led::hi();
                 run_aps(axel, mag, gyro);
+//                G_green_led::lo();
             }
 
             if ((cnt > 3) && ((cnt & 0x1FF) == 0)) ;//print(g_dbg_uart, mag.X, ", ", mag.Y, ", ", mag.Z, ", ", axel.X, ", ", axel.Y, ", ", axel.Z);
