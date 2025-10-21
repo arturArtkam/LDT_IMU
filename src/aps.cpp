@@ -260,7 +260,7 @@ ApsAlgorithmState aps_state;
  * @param angle_rad Угол для "заворачивания".
  * @return Угол в диапазоне [-PI, PI].
  */
-float wrap_to_pi(float angle_rad)
+__STATIC_FORCEINLINE float wrap_to_pi(float angle_rad)
 {
     // Сразу отсекаем NaN и inf
     if (isnan(angle_rad) || isinf(angle_rad))
