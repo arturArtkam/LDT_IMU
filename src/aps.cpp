@@ -379,12 +379,17 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
             slo_modul_w = 0;
 
             //проталкиваем буфер на единицу
-            for (int i = 0; i < MLD_WINDOW_SIZE - 1; i++)
-            {
-                m_modul_buff[i] = m_modul_buff[i + 1];
-                g_modul_buff[i] = g_modul_buff[i + 1];
-                w_modul_buff[i] = w_modul_buff[i + 1];
-            }
+//            for (int i = 0; i < MLD_WINDOW_SIZE - 1; i++)
+//            {
+//                m_modul_buff[i] = m_modul_buff[i + 1];
+//                g_modul_buff[i] = g_modul_buff[i + 1];
+//                w_modul_buff[i] = w_modul_buff[i + 1];
+//            }
+            const size_t bytes_to_move = sizeof(float) * (MLD_WINDOW_SIZE - 1);
+
+            memmove(m_modul_buff, &m_modul_buff[1], bytes_to_move);
+            memmove(g_modul_buff, &g_modul_buff[1], bytes_to_move);
+            memmove(w_modul_buff, &w_modul_buff[1], bytes_to_move);
 
             //пишем в хвост буфера
 //            m_modul_buff[MLD_WINDOW_SIZE - 1] = M_modul;
@@ -538,11 +543,23 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
 
             // Проталкиваем буферы sin и cos
             // (можно использовать memmove для эффективности, но цикл for более нагляден)
-            for (int i = 0; i < N - 1; i++)
-            {
-                aps_state.sin_mtf_buffer[i] = aps_state.sin_mtf_buffer[i + 1];
-                aps_state.cos_mtf_buffer[i] = aps_state.cos_mtf_buffer[i + 1];
-            }
+//            for (int i = 0; i < N - 1; i++)
+//            {
+//                aps_state.sin_mtf_buffer[i] = aps_state.sin_mtf_buffer[i + 1];
+//                aps_state.cos_mtf_buffer[i] = aps_state.cos_mtf_buffer[i + 1];
+//            }
+            memmove(
+                aps_state.sin_mtf_buffer,           // 1. Указатель на начало (куда копируем)
+                &aps_state.sin_mtf_buffer[1],       // 2. Указатель на второй элемент (откуда копируем)
+                sizeof(float) * (N - 1)             // 3. Количество БАЙТ для копирования
+            );
+
+            // Для cos_mtf_buffer:
+            memmove(
+                aps_state.cos_mtf_buffer,
+                &aps_state.cos_mtf_buffer[1],
+                sizeof(float) * (N - 1)
+            );
 
             // Записываем в хвост новые значения
             aps_state.sin_mtf_buffer[N - 1] = sin(metrics.MTF);
