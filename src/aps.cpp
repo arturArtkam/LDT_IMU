@@ -280,20 +280,20 @@ __STATIC_FORCEINLINE float wrap_to_pi(float angle_rad)
 
 void fill_aps_buff()
 {
-    //вычисляем сразу все 16 угловых положений для выдачи прерывания на измерения
+    // Вычисляем сразу все 16 угловых положений для выдачи прерывания на измерения
     // и приводим их значения к интервалу от -PI до PI исключая PI (по правилам atan2)
     if (settings.ROT == -1)
     {
         for (int idx = 0; idx < 16; idx++)
         {
-            aps_state.aps_point_arr[15 - idx] = wrap_to_pi(aps_state.start_APS + idx * M_PI / 8.0f);
+            aps_state.aps_point_arr[15 - idx] = wrap_to_pi((idx + 1) * M_PI / 8.0f);
         }
     }
     else if (settings.ROT == 1)
     {
         for (int idx = 0; idx < 16; idx++)
         {
-            aps_state.aps_point_arr[idx] = wrap_to_pi(aps_state.start_APS - idx * M_PI / 8.0f);
+            aps_state.aps_point_arr[idx] = wrap_to_pi(idx * M_PI / 8.0f);
         }
     }
     else
@@ -360,16 +360,16 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
     metrics.M_modul = modul(metrics.M);
 //            metrics.W_modul = W_g;
 
-    //Вычисляем СЛО вектора магнитного поля земли по 32 последним значениям.
-    //В дальнейшем планируется использовать для вычисления плавающего коэфф
-    //K_predict как индикатор шума(помехи) на магнетометре.
+    // Вычисляем СЛО вектора магнитного поля земли по 32 последним значениям.
+    // В дальнейшем планируется использовать для вычисления плавающего коэфф
+    // K_predict как индикатор шума(помехи) на магнетометре.
     float aver_modul_g = 0, summ_modul_g = 0;
     float aver_modul_w = 0, summ_modul_w = 0;
     slo_modul_g = 0;
     slo_modul_m = 0;
     slo_modul_w = 0;
 
-    //проталкиваем буфер на единицу
+    // Проталкиваем буферы на единицу
     const size_t bytes_to_move = sizeof(float) * (MLD_WINDOW_SIZE - 1);
 
     memmove(m_modul_buff, &m_modul_buff[1], bytes_to_move);
@@ -416,11 +416,11 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
     {
         aps_state.no_mov_delay_tim = 0;
         aps_state.is_moving = false;
-//                print(g_dbg_uart, "G_M_angle: ", wrap_to_pi(metrics.angle_aps_m - metrics.angle_aps));
-//                print(g_dbg_uart, "GX:", metrics.G.X, ", GY:", metrics.G.Y, ", GZ:", metrics.G.Z, ", MX:", metrics.M.X, ", MY:", metrics.M.Y, ", MZ:", metrics.M.Z);
+//      print(g_dbg_uart, "G_M_angle: ", wrap_to_pi(metrics.angle_aps_m - metrics.angle_aps));
+//      print(g_dbg_uart, "GX:", metrics.G.X, ", GY:", metrics.G.Y, ", GZ:", metrics.G.Z, ", MX:", metrics.M.X, ", MY:", metrics.M.Y, ", MZ:", metrics.M.Z);
     }
 
-    //вычисляем углы
+    // Вычисление углов
     metrics.angle_aps = atan2(metrics.G.X, metrics.G.Y);
     metrics.angle_aps_m = atan2(metrics.M.X, metrics.M.Y);
     // на стоянке
@@ -435,15 +435,15 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
     // Расчет MTF с нормализацией в диапазон (-PI, PI] (Magnetic Tool Face - Угол установки отклонителя)
     metrics.MTF = wrap_to_pi(metrics.angle_aps_m); // - metrics.G_M_angle;
 
-    //зенитный угол
+    // Зенитный угол
     metrics.angle_zen = atan2(sqrt(metrics.G.X * metrics.G.X + metrics.G.Y * metrics.G.Y), metrics.G.Z);
-    // если отклонение от вертикали превышает 6 градусов
+    // Если отклонение от вертикали превышает 6 градусов ...
     if (fabs(metrics.angle_zen) >= 0.1) //rad
     {
         metrics.angle_azm = M_PI - atan2((metrics.M.Y * metrics.G.X - metrics.M.X * metrics.G.Y) * metrics.G_modul,
                                     (metrics.M.X * metrics.G.X * metrics.G.Z + metrics.M.Y * metrics.G.Y * metrics.G.Z - metrics.M.Z * metrics.G.X * metrics.G.X - metrics.M.Z * metrics.G.Y * metrics.G.Y)); //pi-
     }
-    // если вертикально, то азимут считаем в апсидальной плоскости
+    // ... если вертикально, то азимут считаем в апсидальной плоскости
     else
     {
         metrics.angle_azm = metrics.angle_aps_m;
