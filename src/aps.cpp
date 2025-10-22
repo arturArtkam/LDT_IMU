@@ -160,6 +160,7 @@ struct ApsAlgorithmState
     uint32_t no_mov_delay_tim = 0;
 
     // --- Состояние алгоритма прогнозирования ---
+    int32_t circ_idx = 0;
     float mtf_buffer[PREDICTION_BUFFER_SIZE] = {0.0f};
     float sin_mtf_buffer[PREDICTION_BUFFER_SIZE] = {0.0f};
     float cos_mtf_buffer[PREDICTION_BUFFER_SIZE] = {0.0f};
@@ -320,170 +321,139 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
     aps_delta = settings.APS_DELTA;
     const float HISTORY_ANGLE = settings.HISTORY_ANGLE;
 
-////    if((bExtADCReady)&&(device_state != STATE_IDLE))
-    {
-        //скользящее среднее
-        //вычитаем  значение   i ячейки массива окна из суммы всех значений окна скользящего среднего
-        G_Summa  = vctr_diff(G_Summa, G_Data[i_filter]);
-        M_Summa  = vctr_diff(M_Summa, M_Data[i_filter]);
-        W_Summa  = vctr_diff(W_Summa, W_Data[i_filter]);
+    //скользящее среднее
+    //вычитаем  значение   i ячейки массива окна из суммы всех значений окна скользящего среднего
+    G_Summa  = vctr_diff(G_Summa, G_Data[i_filter]);
+    M_Summa  = vctr_diff(M_Summa, M_Data[i_filter]);
+    W_Summa  = vctr_diff(W_Summa, W_Data[i_filter]);
 
-        //обновляем i ячейку массива окна скользящего среднего
-        G_Data[i_filter] = axel_raw;
-        M_Data[i_filter] = mag_raw;
-        W_Data[i_filter] = gyro_raw;
+    //обновляем i ячейку массива окна скользящего среднего
+    G_Data[i_filter] = axel_raw;
+    M_Data[i_filter] = mag_raw;
+    W_Data[i_filter] = gyro_raw;
 
-        // заносим сырые  G M
-        G_Summa = vctr_summ(G_Summa, G_Data[i_filter]);
-        M_Summa = vctr_summ(M_Summa, M_Data[i_filter]);
-        W_Summa = vctr_summ(W_Summa, W_Data[i_filter]);
+    // заносим сырые  G M
+    G_Summa = vctr_summ(G_Summa, G_Data[i_filter]);
+    M_Summa = vctr_summ(M_Summa, M_Data[i_filter]);
+    W_Summa = vctr_summ(W_Summa, W_Data[i_filter]);
 
-        /* прибавляем обновленное  значение i ячейки массива к сумме всех значений окна скользящего среднего */
-        metrics.G_ma = vctr_mltp_n(1.0 / MA_WINDOW_SIZE, G_Summa);
-        metrics.M_ma = vctr_mltp_n(1.0 / MA_WINDOW_SIZE, M_Summa);
-        metrics.W_ma = vctr_mltp_n(1.0 / MA_WINDOW_SIZE, W_Summa);
+    // прибавляем обновленное  значение i ячейки массива к сумме всех значений окна скользящего среднего
+    metrics.G_ma = vctr_mltp_n(1.0 / MA_WINDOW_SIZE, G_Summa);
+    metrics.M_ma = vctr_mltp_n(1.0 / MA_WINDOW_SIZE, M_Summa);
+    metrics.W_ma = vctr_mltp_n(1.0 / MA_WINDOW_SIZE, W_Summa);
 
-//        metrics.G = metrics.G_ma;
-//        metrics.M = metrics.M_ma;
-//        metrics.W = metrics.W_ma;
+    //окончательные калибровки
+    //теперь вычитаем offset и умножаем на матрицу, где главная диагональ - это масштабы осей,
+    //XY=YX,XZ=ZX,ZY=YZ - малые диагонали, отвечающие за неортогонaльность осей.
+    metrics.G = callibrate(metrics.G_ma, G_offset_sens);
+    metrics.M = callibrate(metrics.M_ma, M_offset_sens);
+    metrics.W = callibrate(metrics.W_ma, W_offset_sens);
 
-//        if (device_state == STATE_NORMAL)
-//        {
-            //окончательные калибровки
-            //теперь вычитаем offset и умножаем на матрицу, где главная диагональ - это масштабы осей,
-            //XY=YX,XZ=ZX,ZY=YZ - малые диагонали, отвечающие за неортогонaльность осей.
-            metrics.G = callibrate(metrics.G_ma, G_offset_sens);
-            metrics.M = callibrate(metrics.M_ma, M_offset_sens);
-            metrics.W = callibrate(metrics.W_ma, W_offset_sens);
+    metrics.W_g = metrics.W.Z;
 
-            metrics.W_g = metrics.W.Z;
+    // Вычитается смещение нуля гироскопа (определяется на стоянке).
+    metrics.W_g -= metrics.Wg_offset;
+    metrics.Wg_1000 = metrics.W_g / 1000.0; ///rad per 1mc
 
-            /* Вычитается смещение нуля гироскопа (определяется на стоянке). */
-            metrics.W_g -= metrics.Wg_offset;
-            metrics.Wg_1000 = metrics.W_g / 1000.0; ///rad per 1mc
-
-            //вычисляем щас, потом несколько рaз пригодится
-            metrics.G_modul = modul(metrics.G);
-            metrics.M_modul = modul(metrics.M);
+    //вычисляем щас, потом несколько рaз пригодится
+    metrics.G_modul = modul(metrics.G);
+    metrics.M_modul = modul(metrics.M);
 //            metrics.W_modul = W_g;
 
-            //Вычисляем СЛО вектора магнитного поля земли по 32 последним значениям.
-            //В дальнейшем планируется использовать для вычисления плавающего коэфф
-            //K_predict как индикатор шума(помехи) на магнетометре.
-            // 10 mkc
-//            float aver_modul_m = 0, summ_modul_m = 0;
-            float aver_modul_g = 0, summ_modul_g = 0;
-            float aver_modul_w = 0, summ_modul_w = 0;
-            slo_modul_g = 0;
-            slo_modul_m = 0;
-            slo_modul_w = 0;
+    //Вычисляем СЛО вектора магнитного поля земли по 32 последним значениям.
+    //В дальнейшем планируется использовать для вычисления плавающего коэфф
+    //K_predict как индикатор шума(помехи) на магнетометре.
+    float aver_modul_g = 0, summ_modul_g = 0;
+    float aver_modul_w = 0, summ_modul_w = 0;
+    slo_modul_g = 0;
+    slo_modul_m = 0;
+    slo_modul_w = 0;
 
-            //проталкиваем буфер на единицу
-//            for (int i = 0; i < MLD_WINDOW_SIZE - 1; i++)
-//            {
-//                m_modul_buff[i] = m_modul_buff[i + 1];
-//                g_modul_buff[i] = g_modul_buff[i + 1];
-//                w_modul_buff[i] = w_modul_buff[i + 1];
-//            }
-            const size_t bytes_to_move = sizeof(float) * (MLD_WINDOW_SIZE - 1);
+    //проталкиваем буфер на единицу
+    const size_t bytes_to_move = sizeof(float) * (MLD_WINDOW_SIZE - 1);
 
-            memmove(m_modul_buff, &m_modul_buff[1], bytes_to_move);
-            memmove(g_modul_buff, &g_modul_buff[1], bytes_to_move);
-            memmove(w_modul_buff, &w_modul_buff[1], bytes_to_move);
+    memmove(m_modul_buff, &m_modul_buff[1], bytes_to_move);
+    memmove(g_modul_buff, &g_modul_buff[1], bytes_to_move);
+    memmove(w_modul_buff, &w_modul_buff[1], bytes_to_move);
 
-            //пишем в хвост буфера
+    //пишем в хвост буфера
 //            m_modul_buff[MLD_WINDOW_SIZE - 1] = M_modul;
-            g_modul_buff[MLD_WINDOW_SIZE - 1] = metrics.G_modul;
+    g_modul_buff[MLD_WINDOW_SIZE - 1] = metrics.G_modul;
 //            w_modul_buff[MLD_WINDOW_SIZE - 1] = W_modul;
-            //считаем среднее
-            for (int i = 0; i < MLD_WINDOW_SIZE; i++)
-            {
+    //считаем среднее
+    for (int i = 0; i < MLD_WINDOW_SIZE; i++)
+    {
 //                aver_modul_m +=  m_modul_buff[i];
-                aver_modul_g += g_modul_buff[i];
-                aver_modul_w += w_modul_buff[i];
-            }
+        aver_modul_g += g_modul_buff[i];
+        aver_modul_w += w_modul_buff[i];
+    }
 //            aver_modul_m /= MLD_WINDOW_SIZE;
-            aver_modul_g /= MLD_WINDOW_SIZE;
-            aver_modul_w /= MLD_WINDOW_SIZE;
-            //считаем среднелинейное отклонение
-            for (int i = 0; i < MLD_WINDOW_SIZE; i++)
-            {
+    aver_modul_g /= MLD_WINDOW_SIZE;
+    aver_modul_w /= MLD_WINDOW_SIZE;
+    //считаем среднелинейное отклонение
+    for (int i = 0; i < MLD_WINDOW_SIZE; i++)
+    {
 //                summ_modul_m += fabs(m_modul_buff[i] - aver_modul_m);
-                summ_modul_g += fabs(g_modul_buff[i] - aver_modul_g);
+        summ_modul_g += fabs(g_modul_buff[i] - aver_modul_g);
 //                summ_modul_w += fabs(w_modul_buff[i] - aver_modul_w);
-            }
+    }
 //            slo_modul_m = summ_modul_m / MLD_WINDOW_SIZE;
-            slo_modul_g = summ_modul_g / MLD_WINDOW_SIZE;
+    slo_modul_g = summ_modul_g / MLD_WINDOW_SIZE;
 //            slo_modul_w = summ_modul_w / MLD_WINDOW_SIZE;
 
-            /* применяем СЛО для детекции движения */
-            if (slo_modul_g < settings.MOVEMENT_CMP_VALUE)
-            {
-                aps_state.no_mov_delay_tim++;
-            }
-            else
-            {
-                aps_state.no_mov_delay_tim = 0;
-                aps_state.is_moving = true;
-            }
+    // СЛО для детекции движения
+    if (slo_modul_g < settings.MOVEMENT_CMP_VALUE)
+    {
+        aps_state.no_mov_delay_tim++;
+    }
+    else
+    {
+        aps_state.no_mov_delay_tim = 0;
+        aps_state.is_moving = true;
+    }
 
-            if (aps_state.no_mov_delay_tim > 1000)
-            {
-                aps_state.no_mov_delay_tim = 0;
-                aps_state.is_moving = false;
+    if (aps_state.no_mov_delay_tim > 1000)
+    {
+        aps_state.no_mov_delay_tim = 0;
+        aps_state.is_moving = false;
 //                print(g_dbg_uart, "G_M_angle: ", wrap_to_pi(metrics.angle_aps_m - metrics.angle_aps));
 //                print(g_dbg_uart, "GX:", metrics.G.X, ", GY:", metrics.G.Y, ", GZ:", metrics.G.Z, ", MX:", metrics.M.X, ", MY:", metrics.M.Y, ", MZ:", metrics.M.Z);
-            }
+    }
 
-            //вычисляем углы
-            metrics.angle_aps = atan2(metrics.G.X, metrics.G.Y);
-            metrics.angle_aps_m = atan2(metrics.M.X, metrics.M.Y);
-            // на стоянке
-            if (!aps_state.is_moving)
-            {
-                metrics.G_M_angle = metrics.angle_aps_m - metrics.angle_aps; //определяем разницу между магнитым и гравитационным апсидальными углами
-                if (fabs(metrics.W.Z) < 0.1)
-                    //Wg_offset = W.Z; // определяем смещение нуля гироскопа
-                    metrics.Wg_offset = aver_modul_w;
-            }
+    //вычисляем углы
+    metrics.angle_aps = atan2(metrics.G.X, metrics.G.Y);
+    metrics.angle_aps_m = atan2(metrics.M.X, metrics.M.Y);
+    // на стоянке
+    if (!aps_state.is_moving)
+    {
+        metrics.G_M_angle = metrics.angle_aps_m - metrics.angle_aps; //определяем разницу между магнитым и гравитационным апсидальными углами
+        if (fabs(metrics.W.Z) < 0.1)
+            //Wg_offset = W.Z; // определяем смещение нуля гироскопа
+            metrics.Wg_offset = aver_modul_w;
+    }
 
-            /* Расчет MTF (Magnetic Tool Face - Угол установки отклонителя) */
-            metrics.MTF = wrap_to_pi(metrics.angle_aps_m); // - metrics.G_M_angle;
-//            /* Нормализация MTF в диапазон (-PI, PI] */
-//            if (settings.ROT == -1)
-//            {
-//                while (metrics.MTF > M_PI) metrics.MTF += 2 * M_PI;
-//                while (metrics.MTF <= -M_PI)  metrics.MTF -= 2 * M_PI;
-//            }
-//            else if (settings.ROT == 1)
-//            {
-//                while (metrics.MTF > M_PI) metrics.MTF -= 2 * M_PI;
-//                while (metrics.MTF <= -M_PI)  metrics.MTF += 2 * M_PI;
-//            }
-//            else
-//            {
-//                while (1);
-//            }
+    // Расчет MTF с нормализацией в диапазон (-PI, PI] (Magnetic Tool Face - Угол установки отклонителя)
+    metrics.MTF = wrap_to_pi(metrics.angle_aps_m); // - metrics.G_M_angle;
 
-            //зенитный угол
-            metrics.angle_zen = atan2(sqrt(metrics.G.X * metrics.G.X + metrics.G.Y * metrics.G.Y), metrics.G.Z);
-            /* если отклонение от вертикали превышает 6 градусов */
-            if (fabs(metrics.angle_zen) >= 0.1) //rad
-            {
-                metrics.angle_azm = M_PI - atan2((metrics.M.Y * metrics.G.X - metrics.M.X * metrics.G.Y) * metrics.G_modul,
-                                         (metrics.M.X * metrics.G.X * metrics.G.Z + metrics.M.Y * metrics.G.Y * metrics.G.Z - metrics.M.Z * metrics.G.X * metrics.G.X - metrics.M.Z * metrics.G.Y * metrics.G.Y)); //pi-
-            }
-            /* если вертикально, то азимут считаем в апсидальной плоскости */
-            else
-            {
-                metrics.angle_azm = metrics.angle_aps_m;
-            }
+    //зенитный угол
+    metrics.angle_zen = atan2(sqrt(metrics.G.X * metrics.G.X + metrics.G.Y * metrics.G.Y), metrics.G.Z);
+    // если отклонение от вертикали превышает 6 градусов
+    if (fabs(metrics.angle_zen) >= 0.1) //rad
+    {
+        metrics.angle_azm = M_PI - atan2((metrics.M.Y * metrics.G.X - metrics.M.X * metrics.G.Y) * metrics.G_modul,
+                                    (metrics.M.X * metrics.G.X * metrics.G.Z + metrics.M.Y * metrics.G.Y * metrics.G.Z - metrics.M.Z * metrics.G.X * metrics.G.X - metrics.M.Z * metrics.G.Y * metrics.G.Y)); //pi-
+    }
+    // если вертикально, то азимут считаем в апсидальной плоскости
+    else
+    {
+        metrics.angle_azm = metrics.angle_aps_m;
+    }
 
-            metrics.angle_aps_deg = (metrics.angle_aps * 57.295779513f);
-            metrics.angle_aps_m_deg = (metrics.angle_aps_m * 57.295779513f);
-            metrics.angle_zen_deg = (metrics.angle_zen * 57.295779513f);
-            metrics.angle_azm_deg = (metrics.angle_azm * 57.295779513f);
-            metrics.MTF_deg = (metrics.MTF * 57.295779513f);
+    metrics.angle_aps_deg = (metrics.angle_aps * 57.295779513f);
+    metrics.angle_aps_m_deg = (metrics.angle_aps_m * 57.295779513f);
+    metrics.angle_zen_deg = (metrics.angle_zen * 57.295779513f);
+    metrics.angle_azm_deg = (metrics.angle_azm * 57.295779513f);
+    metrics.MTF_deg = (metrics.MTF * 57.295779513f);
 
 // --- СЛЕДЯЩИЙ АЛГОРИТМ ---
 //Аппроксимирует предыдущие К точек скорректированного MTF (MTF_C) AX2+BX+C
@@ -497,7 +467,53 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
 //Угловая скорость на оси Z прибора предполагается в пределах 30-180 об/мин,
 //или 180-1080 град/с, или PI - 6*PI rad/c, или ~ 0.0031416-0,0188496 rad/tick
 //для этого диапазона скоростей К будет лежать в пределах 128 - 22.
+    // --- СЛЕДЯЩИЙ АЛГОРИТМ с КОЛЬЦЕВЫМИ БУФЕРАМИ ---
+    // Запись новых значений в "голову" буфера
+    aps_state.sin_mtf_buffer[aps_state.circ_idx] = sin(metrics.MTF);
+    aps_state.cos_mtf_buffer[aps_state.circ_idx] = cos(metrics.MTF);
 
+    // Вычисление K
+    int K = static_cast<int>(fabs(HISTORY_ANGLE / metrics.Wg_1000));
+    if (K < 3) K = 3;
+    if (K > N) K = N;
+
+    // Вычисление задержки
+    const float ma_filter_lag_samples = (MA_WINDOW_SIZE - 1) / 2.0f;
+
+    // Предсказание компонент, используя функцию для кольцевых буферов
+    float sin_pred = predict_component_circ(aps_state.sin_mtf_buffer, N, aps_state.circ_idx, K, ma_filter_lag_samples);
+    float cos_pred = predict_component_circ(aps_state.cos_mtf_buffer, N, aps_state.circ_idx, K, ma_filter_lag_samples);
+
+    // Восстанавление угла из предсказанных компонент
+    aps_state.prediction = atan2(sin_pred, cos_pred);
+
+    // Сдвигаем индекс "головы" на следующую позицию. Быстрая версия, если N - степень двойки (128 - это 2^7):
+    aps_state.circ_idx = (aps_state.circ_idx + 1) & (N - 1);
+
+    if (AUTO_DELTA == 1)
+        aps_delta = settings.APS_DELTA + fabs(metrics.Wg_1000 * settings.K_delta);
+
+    float diff = wrap_to_pi(aps_state.prediction - metrics.MTF);
+    float K_predict = (fabs(diff) > aps_delta) ? 1.0f : 0.5f;
+    aps_state.final_MTF_m_p = wrap_to_pi(metrics.MTF + diff * K_predict);
+
+    static int8_t saved_idx = 0;
+
+    for (int8_t idx = 0; idx < 16; idx++)
+    {
+        if ((aps_state.final_MTF_m_p > aps_state.aps_point_arr[idx] - aps_delta
+            && aps_state.final_MTF_m_p < aps_state.aps_point_arr[idx] + aps_delta)
+            && saved_idx != idx)
+        {
+            saved_idx = idx;
+            G_red_led::toggle();
+            print(g_dbg_uart, "APS ", idx, "-> pre:", aps_state.prediction, ", mtf:", metrics.MTF, ", fin:", aps_state.final_MTF_m_p, ", K:", K_predict, ", ", aps_state.aps_point_arr[idx], "(+/-", aps_delta, ")");
+            break;
+        }
+    }
+
+    i_filter = (i_filter + 1) & (MA_WINDOW_SIZE - 1);
+}
 //            //проталкиваем буфер на единицу
 //            for (int i = 0; i < N - 1; i++)
 //            {
@@ -541,68 +557,50 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
 //
 //            aps_state.final_MTF_m_p = (metrics.MTF * (1 - K_predict) + K_predict * aps_state.prediction);
 
-            // Проталкиваем буферы sin и cos
-            // (можно использовать memmove для эффективности, но цикл for более нагляден)
+        // Проталкиваем буферы sin и cos
+        // (можно использовать memmove для эффективности, но цикл for более нагляден)
 //            for (int i = 0; i < N - 1; i++)
 //            {
 //                aps_state.sin_mtf_buffer[i] = aps_state.sin_mtf_buffer[i + 1];
 //                aps_state.cos_mtf_buffer[i] = aps_state.cos_mtf_buffer[i + 1];
 //            }
-            G_green_led::hi();
-            memmove(
-                aps_state.sin_mtf_buffer,           // 1. Указатель на начало (куда копируем)
-                &aps_state.sin_mtf_buffer[1],       // 2. Указатель на второй элемент (откуда копируем)
-                sizeof(float) * (N - 1)             // 3. Количество БАЙТ для копирования
-            );
+////            G_green_led::hi();
+////            memmove(
+////                aps_state.sin_mtf_buffer,           // 1. Указатель на начало (куда копируем)
+////                &aps_state.sin_mtf_buffer[1],       // 2. Указатель на второй элемент (откуда копируем)
+////                sizeof(float) * (N - 1)             // 3. Количество БАЙТ для копирования
+////            );
+////
+////            // Для cos_mtf_buffer:
+////            memmove(
+////                aps_state.cos_mtf_buffer,
+////                &aps_state.cos_mtf_buffer[1],
+////                sizeof(float) * (N - 1)
+////            );
+////            G_green_led::lo();
+////            // Записываем в хвост новые значения
+////            aps_state.sin_mtf_buffer[N - 1] = sin(metrics.MTF);
+////            aps_state.cos_mtf_buffer[N - 1] = cos(metrics.MTF);
+////
+////            // Вычисляем K (как и раньше)
+////            int K = static_cast<int>(fabs(HISTORY_ANGLE / metrics.Wg_1000));
+////            if (K < 3) K = 3;       // Для параболы нужно минимум 3 точки
+////            if (K > N) K = N;
+////
+////            // Вычисление задержки
+////            const float ma_filter_lag_samples = (MA_WINDOW_SIZE - 1) / 2.0f;
+////
+////            // Предсказание каждой компоненты отдельно
+////            float sin_pred = predict_component(aps_state.sin_mtf_buffer, N, K, ma_filter_lag_samples);
+////            float cos_pred = predict_component(aps_state.cos_mtf_buffer, N, K, ma_filter_lag_samples);
+////
+////            // Восстанавление угла из предсказанных компонент
+////            aps_state.prediction = atan2(sin_pred, cos_pred);
 
-            // Для cos_mtf_buffer:
-            memmove(
-                aps_state.cos_mtf_buffer,
-                &aps_state.cos_mtf_buffer[1],
-                sizeof(float) * (N - 1)
-            );
-            G_green_led::lo();
-            // Записываем в хвост новые значения
-            aps_state.sin_mtf_buffer[N - 1] = sin(metrics.MTF);
-            aps_state.cos_mtf_buffer[N - 1] = cos(metrics.MTF);
 
-            // Вычисляем K (как и раньше)
-            int K = static_cast<int>(fabs(HISTORY_ANGLE / metrics.Wg_1000));
-            if (K < 3) K = 3;       // Для параболы нужно минимум 3 точки
-            if (K > N) K = N;
+//            G_green_led::hi(); // Используем светодиод, чтобы измерить время выполнения этого блока
 
-            // Вычисление задержки
-            const float ma_filter_lag_samples = (MA_WINDOW_SIZE - 1) / 2.0f;
-
-            // Предсказание каждой компоненты отдельно
-            float sin_pred = predict_component(aps_state.sin_mtf_buffer, N, K, ma_filter_lag_samples);
-            float cos_pred = predict_component(aps_state.cos_mtf_buffer, N, K, ma_filter_lag_samples);
-
-            // Восстанавление угла из предсказанных компонент
-            aps_state.prediction = atan2(sin_pred, cos_pred);
-
-            if (AUTO_DELTA == 1)
-                aps_delta = settings.APS_DELTA + fabs(metrics.Wg_1000 * settings.K_delta);
-
-            float diff = wrap_to_pi(aps_state.prediction - metrics.MTF);
-            float K_predict = (fabs(diff) > aps_delta) ? 1.0f : 0.5f;
-            aps_state.final_MTF_m_p = wrap_to_pi(metrics.MTF + diff * K_predict);
-
-            static int8_t saved_idx = 0;
-
-            for (int8_t idx = 0; idx < 16; idx++)
-            {
-                if ((aps_state.final_MTF_m_p > aps_state.aps_point_arr[idx] - aps_delta
-                    && aps_state.final_MTF_m_p < aps_state.aps_point_arr[idx] + aps_delta)
-                    && saved_idx != idx)
-//                    && ((std::abs(saved_idx - idx) == 1) || (std::abs(saved_idx - idx) == 15)))
-                {
-                    saved_idx = idx;
-                    G_red_led::toggle();
-                    print(g_dbg_uart, "APS ", idx, "-> pre:", aps_state.prediction, ", mtf:", metrics.MTF, ", fin:", aps_state.final_MTF_m_p, ", K:", K_predict, ", ", aps_state.aps_point_arr[idx], "(+/-", aps_delta, ")");
-                    break;
-                }
-            }
+//}
 
 //            if ((aps_state.final_MTF_m_p > aps_state.aps_point_arr[aps_state.aps_idx] - aps_delta
 //                && aps_state.final_MTF_m_p < aps_state.aps_point_arr[aps_state.aps_idx] + aps_delta)
@@ -612,10 +610,9 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
 //                aps_state.aps_idx = (aps_state.aps_idx + 1) & (16 - 1);
 //                G_red_led::toggle();
 //            }
-        i_filter = (i_filter + 1) & (MA_WINDOW_SIZE - 1);
+
 //        if ((i_filter & (MA_WINDOW_SIZE - 1)) == 0) G_green_led::toggle();
-    } //end if not idle
-}
+//}
 
 //            /* Ожидание начала нового цикла измерений APS (APS - angular position system) */
 //            //выдача команды на прерывание раз в PI/8

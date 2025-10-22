@@ -201,6 +201,71 @@ float predict_component(const float* history_buffer, int buffer_size, int K, flo
     return prediction;
 }
 
+/**
+ * @brief Универсальная и численно стабильная "ручная" реализация МНК,
+ *        адаптированная для работы с КОЛЬЦЕВЫМ буфером.
+ *
+ * @param circ_history_buffer Указатель на начало КОЛЬЦЕВОГО буфера.
+ * @param buffer_size         Общий размер буфера (N).
+ * @param head_idx            Индекс "головы" буфера (куда было записано последнее значение).
+ * @param K                   Размер окна для аппроксимации.
+ * @param lag_samples         Количество отсчетов для предсказания вперед.
+ * @return                    Предсказанное значение компоненты.
+ */
+float predict_component_circ(const float* circ_history_buffer, int buffer_size, int head_idx, int K, float lag_samples)
+{
+    // --- 1. Проверки на корректность ---
+    if (K <= 2) {
+        return circ_history_buffer[head_idx];
+    }
+
+    // --- 2. Рассчитываем суммы, "собирая" данные из кольцевого буфера ---
+    // Это ключевое отличие от предыдущей версии.
+    const float x_mean = static_cast<float>(K - 1) / 2.0f;
+
+    float sx2_prime = 0.0, sx4_prime = 0.0, sy = 0.0, sx_prime_y = 0.0, sx2_prime_y = 0.0;
+
+    // Итерируемся K раз, чтобы получить K последних значений
+    for (int i = 0; i < K; ++i) {
+        // Вычисляем индекс в кольцевом буфере, двигаясь "назад" от головы
+        // (head_idx - (K - 1) + i) - это "виртуальный" индекс от хвоста к голове
+        // Операция % buffer_size "заворачивает" отрицательные индексы
+        int current_idx = (head_idx - (K - 1) + i + buffer_size) % buffer_size;
+
+        const float y_i = circ_history_buffer[current_idx];
+
+        // x_prime - это относительная координата x, где i - номер точки в окне [0..K-1]
+        const float x_prime_i = static_cast<float>(i) - x_mean;
+        const float x_prime_i_sq = x_prime_i * x_prime_i;
+
+        sx2_prime += x_prime_i_sq;
+        sx4_prime += x_prime_i_sq * x_prime_i_sq;
+        sy += y_i;
+        sx_prime_y += x_prime_i * y_i;
+        sx2_prime_y += x_prime_i_sq * y_i;
+    }
+
+    // --- 3. Решаем систему уравнений (этот блок кода остается без изменений) ---
+    if (std::fabs(sx2_prime) < 1e-9) return circ_history_buffer[head_idx];
+    const float b_prime = sx_prime_y / sx2_prime;
+
+    const float det = static_cast<float>(K) * sx4_prime - sx2_prime * sx2_prime;
+    if (std::fabs(det) < 1e-9) return circ_history_buffer[head_idx];
+
+    const float c_prime = (sx4_prime * sy - sx2_prime * sx2_prime_y) / det;
+    const float a_prime = (static_cast<float>(K) * sx2_prime_y - sx2_prime * sy) / det;
+
+    // --- 4. Делаем предсказание (этот блок кода остается без изменений) ---
+    const float predict_at_point_x = static_cast<float>(K) + lag_samples;
+    const float predict_at_point_x_prime = predict_at_point_x - x_mean;
+
+    const float prediction = a_prime * predict_at_point_x_prime * predict_at_point_x_prime +
+                           b_prime * predict_at_point_x_prime +
+                           c_prime;
+
+    return static_cast<float>(prediction);
+}
+
 //struct Cal add_cal(struct Cal first, struct Cal second) {
 //    struct Cal result;
 //    result.offset = vctr_summ(first.offset , (mtrx_vctr_mltp(mtrx_1(first.sens), second.offset)));

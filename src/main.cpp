@@ -423,9 +423,9 @@ int main()
                 g_gyro.read_all_axes(&w_res);
                 // Ось X гироскопа совпадает с осью Z прибора
                 gyro = {(float)w_res.w_z, (float)w_res.w_y, (float)w_res.w_x};
-//                G_green_led::hi();
+                G_green_led::hi();
                 run_aps(axel, mag, gyro);
-//                G_green_led::lo();
+                G_green_led::lo();
             }
 
             if ((cnt > 3) && ((cnt & 0x1FF) == 0)) ;//print(g_dbg_uart, mag.X, ", ", mag.Y, ", ", mag.Z, ", ", axel.X, ", ", axel.Y, ", ", axel.Z);
