@@ -4,7 +4,7 @@
 
 constexpr size_t MA_BUFFER_SIZE = 32; //окно скользящего среднего для данных
 constexpr size_t MLD_BUFFER_SIZE = 32; // окно СЛО
-constexpr size_t PREDICTION_BUFFER_SIZE = 128;
+constexpr size_t PREDICTION_BUFFER_SIZE = 128; // размер буфера для следящего алгоритма
 constexpr uint32_t PULSE_WIDTH = 3; // ширина импульса в мс
 constexpr uint32_t BETH_PULSE_DELAY = 32; // время между импульсами
 
@@ -69,19 +69,22 @@ struct ApsAlgorithmState
     float final_MTF_m_p = 0.0f; // Смешанное значение MTF (измеренное + прогноз)
 };
 
-//int delta; //добавляется 1, если угловое расстояние до следующего индекса мало
-float aps_delta = M_PI / 360; // - 1 градус (с какой точностью определяется момент замера)
-
-// для сырых, после скользящего среднего и калиброванных данных и скользящего среднего
-Vec G_Summa = {0, 0, 0};
-Vec M_Summa = {0, 0, 0};
-Vec W_Summa = {0, 0, 0};
-Vec G_Data[MA_BUFFER_SIZE];
-Vec M_Data[MA_BUFFER_SIZE];
-Vec W_Data[MA_BUFFER_SIZE];
-
 //установки
 struct Set settings;
+//static CalibrationData callibrations;
+static CalculatedData metrics;
+static ApsAlgorithmState aps_state;
+
+//int delta; //добавляется 1, если угловое расстояние до следующего индекса мало
+static float aps_delta = M_PI / 360; // - 1 градус (с какой точностью определяется момент замера)
+
+// для сырых, после скользящего среднего и калиброванных данных и скользящего среднего
+static Vec G_Summa = {0, 0, 0};
+static Vec M_Summa = {0, 0, 0};
+static Vec W_Summa = {0, 0, 0};
+static Vec G_Data[MA_BUFFER_SIZE];
+static Vec M_Data[MA_BUFFER_SIZE];
+static Vec W_Data[MA_BUFFER_SIZE];
 
 //для следящего алгоритма и СЛО
 static float g_modul_buff[MLD_BUFFER_SIZE];
@@ -91,8 +94,8 @@ static float slo_modul_g;
 static float slo_modul_m;
 static float slo_modul_w;
 
-//int N = 128, K = 128;
 static float K_predict = 0.5;
+static uint16_t i_filter = 0;
 
 void read_cal_and_settings()
 {
@@ -157,10 +160,6 @@ void read_cal_and_settings()
     if (isnan(settings.K_delta)) settings.K_delta = 2.5;
 }
 
-static uint16_t i_filter = 0;
-//static CalibrationData callibrations;
-static CalculatedData metrics;
-static ApsAlgorithmState aps_state;
 
 /**
  * @brief Приводит угол (в радианах) к каноническому диапазону [-PI, PI].
