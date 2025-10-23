@@ -8,6 +8,13 @@ constexpr size_t PREDICTION_BUFFER_SIZE = 128; // размер буфера для следящего ал
 constexpr uint32_t PULSE_WIDTH = 3; // ширина импульса в мс
 constexpr uint32_t BETH_PULSE_DELAY = 32; // время между импульсами
 
+static_assert((MA_BUFFER_SIZE > 0) && ((MA_BUFFER_SIZE & (MA_BUFFER_SIZE - 1)) == 0),
+              "MA_BUFFER_SIZE must be a power of two for bitwise operations to work.");
+static_assert((MLD_BUFFER_SIZE > 0) && ((MLD_BUFFER_SIZE & (MLD_BUFFER_SIZE - 1)) == 0),
+              "MLD_BUFFER_SIZE must be a power of two for bitwise operations to work.");
+static_assert((PREDICTION_BUFFER_SIZE > 0) && ((PREDICTION_BUFFER_SIZE & (PREDICTION_BUFFER_SIZE - 1)) == 0),
+              "PREDICTION_BUFFER_SIZE must be a power of two for bitwise operations to work.");
+
 // --- Структуры для хранения калибровочных коэффициентов ---
 Cal G_offset_sens = { 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1 };
 Cal M_offset_sens = { 0, 0, 0, 0.157f, 0, 0, 0, 0.157f, 0, 0, 0, 0.157f };
@@ -41,24 +48,24 @@ struct CalculatedData
 // --- Состояние основного алгоритма ---
 struct ApsAlgorithmState
 {
-    // --- Состояние детектора движения ---
+    // Состояние детектора движения
     volatile bool is_moving = false;
     uint32_t no_mov_delay_tim = 0;
 
-    // --- Состояние алгоритма прогнозирования ---
+    // Состояние алгоритма прогнозирования
     int32_t circ_idx = 0;
     float mtf_buffer[PREDICTION_BUFFER_SIZE] = {0.0f}; // буфер для следящего алгоритма
     float sin_mtf_buffer[PREDICTION_BUFFER_SIZE] = {0.0f}; // буфер для следящего алгоритма
     float cos_mtf_buffer[PREDICTION_BUFFER_SIZE] = {0.0f}; // буфер для следящего алгоритма
     float prediction = 0.0f; // для предсказанного значения
 
-    // --- Состояние системы APS ---
+    // Состояние системы APS
     Aps_state mode = APS_READY; // Текущий режим (enum Aps_state)
     float start_APS = 0;
     float aps_point_arr[16] = {0.0f};
     uint16_t aps_idx = 0; // Счетчик массива угловых положений
 
-    // --- Таймеры и счетчики APS ---
+    // Таймеры и счетчики APS
     volatile uint32_t tim = 0;
     volatile uint32_t pulse = 0;
     volatile uint32_t beth_pulse_delay_tim = 0;
@@ -284,7 +291,7 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
     g_modul_buff[MLD_BUFFER_SIZE - 1] = metrics.G_modul;
 //            w_modul_buff[MLD_BUFFER_SIZE - 1] = W_modul;
     //считаем среднее
-    for (int i = 0; i < MLD_BUFFER_SIZE; i++)
+    for (size_t i = 0; i < MLD_BUFFER_SIZE; i++)
     {
 //                aver_modul_m +=  m_modul_buff[i];
         aver_modul_g += g_modul_buff[i];
@@ -294,7 +301,7 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
     aver_modul_g /= MLD_BUFFER_SIZE;
     aver_modul_w /= MLD_BUFFER_SIZE;
     //считаем среднелинейное отклонение
-    for (int i = 0; i < MLD_BUFFER_SIZE; i++)
+    for (size_t i = 0; i < MLD_BUFFER_SIZE; i++)
     {
 //                summ_modul_m += fabs(m_modul_buff[i] - aver_modul_m);
         summ_modul_g += fabs(g_modul_buff[i] - aver_modul_g);
@@ -378,7 +385,7 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
     // Вычисление размера окна для аппроксимации.
     int K = static_cast<int>(fabs(HISTORY_ANGLE / metrics.Wg_1000));
     if (K < 3) K = 3;
-    if (K > PREDICTION_BUFFER_SIZE) K = PREDICTION_BUFFER_SIZE;
+    if ((size_t)K > PREDICTION_BUFFER_SIZE) K = PREDICTION_BUFFER_SIZE;
 
     // Вычисление задержки
     const float ma_filter_lag_samples = (MA_BUFFER_SIZE - 1) / 2.0f;
