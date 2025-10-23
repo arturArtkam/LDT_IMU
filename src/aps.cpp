@@ -335,7 +335,7 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw, aps_callback_t callback
     // на стоянке
     if (!aps_state.is_moving)
     {
-        metrics.G_M_angle = metrics.angle_aps_m - metrics.angle_aps; //определяем разницу между магнитым и гравитационным апсидальными углами
+        metrics.G_M_angle = wrap_to_pi(metrics.angle_aps_m - metrics.angle_aps); //определяем разницу между магнитым и гравитационным апсидальными углами
         if (fabs(metrics.W.Z) < 0.1)
             //Wg_offset = W.Z; // определяем смещение нуля гироскопа
             metrics.Wg_offset = aver_modul_w;
@@ -416,9 +416,9 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw, aps_callback_t callback
             && saved_idx != idx)
         {
             saved_idx = idx;
-            led_timer = 100;
+            led_timer = 50;
             G_red_led::hi();
-            print(g_dbg_uart, "APS ", idx, "-> pre:", aps_state.prediction, ", mtf:", metrics.MTF, ", fin:", aps_state.final_MTF_m_p, ", K:", K_predict, ", ", aps_state.aps_point_arr[idx], "(+/-", aps_delta, ")");
+            print(g_dbg_uart, "APS ", idx, "-> pre:", aps_state.prediction, ", mtf:", metrics.MTF, ", G-M:", metrics.G_M_angle, ", fin:", aps_state.final_MTF_m_p, ", K:", K_predict, ", ", aps_state.aps_point_arr[idx], "(+/-", aps_delta, ")");
             if (callback != nullptr)
                 callback(reinterpret_cast<uint8_t*>(&metrics));
             break;

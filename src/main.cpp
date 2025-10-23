@@ -412,7 +412,7 @@ int main()
                 G_green_led::lo();
             }
 
-            if ((cnt > 3) && ((cnt & 0x1FF) == 0)) print(g_dbg_uart, mag.X, ", ", mag.Y, ", ", mag.Z, ", ", axel.X, ", ", axel.Y, ", ", axel.Z);
+            if ((cnt > 3) && ((cnt & 0x1FF) == 0)) {};//print(g_dbg_uart, mag.X, ", ", mag.Y, ", ", mag.Z, ", ", axel.X, ", ", axel.Y, ", ", axel.Z);
             cnt++;
         }
 
