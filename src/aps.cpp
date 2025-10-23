@@ -102,7 +102,7 @@ static float slo_modul_m;
 static float slo_modul_w;
 
 static float K_predict = 0.5;
-static uint16_t i_filter = 0;
+static uint16_t i_ma = 0;
 
 void read_cal_and_settings()
 {
@@ -220,9 +220,8 @@ void fill_aps_buff()
     }
 }
 
-void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
+void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw, aps_callback_t callback)
 {
-
     const int WMIN = settings.W_MIN; // rad/c
     const int WMAX = settings.W_MAX; // rad/c
     const int AUTO_DELTA = settings.AUTO_DELTA;
@@ -233,19 +232,19 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
 
     //скольз€щее среднее
     //вычитаем  значение   i €чейки массива окна из суммы всех значений окна скольз€щего среднего
-    G_Summa  = vctr_diff(G_Summa, G_Data[i_filter]);
-    M_Summa  = vctr_diff(M_Summa, M_Data[i_filter]);
-    W_Summa  = vctr_diff(W_Summa, W_Data[i_filter]);
+    G_Summa  = vctr_diff(G_Summa, G_Data[i_ma]);
+    M_Summa  = vctr_diff(M_Summa, M_Data[i_ma]);
+    W_Summa  = vctr_diff(W_Summa, W_Data[i_ma]);
 
     //обновл€ем i €чейку массива окна скольз€щего среднего
-    G_Data[i_filter] = axel_raw;
-    M_Data[i_filter] = mag_raw;
-    W_Data[i_filter] = gyro_raw;
+    G_Data[i_ma] = axel_raw;
+    M_Data[i_ma] = mag_raw;
+    W_Data[i_ma] = gyro_raw;
 
     // заносим сырые  G M
-    G_Summa = vctr_summ(G_Summa, G_Data[i_filter]);
-    M_Summa = vctr_summ(M_Summa, M_Data[i_filter]);
-    W_Summa = vctr_summ(W_Summa, W_Data[i_filter]);
+    G_Summa = vctr_summ(G_Summa, G_Data[i_ma]);
+    M_Summa = vctr_summ(M_Summa, M_Data[i_ma]);
+    W_Summa = vctr_summ(W_Summa, W_Data[i_ma]);
 
     // прибавл€ем обновленное  значение i €чейки массива к сумме всех значений окна скольз€щего среднего
     metrics.G_ma = vctr_mltp_n(1.0 / MA_BUFFER_SIZE, G_Summa);
@@ -343,7 +342,7 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
     }
 
     // –асчет MTF с нормализацией в диапазон (-PI, PI] (Magnetic Tool Face - ”гол установки отклонител€)
-    metrics.MTF = wrap_to_pi(metrics.angle_aps_m); // - metrics.G_M_angle;
+    metrics.MTF = wrap_to_pi(metrics.angle_aps_m) - metrics.G_M_angle;
 
     // «енитный угол
     metrics.angle_zen = atan2(sqrt(metrics.G.X * metrics.G.X + metrics.G.Y * metrics.G.Y), metrics.G.Z);
@@ -408,6 +407,7 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
     aps_state.final_MTF_m_p = wrap_to_pi(metrics.MTF + diff * K_predict);
 
     static int8_t saved_idx = 0;
+    static int16_t led_timer = 0;
 
     for (int8_t idx = 0; idx < 16; idx++)
     {
@@ -416,13 +416,19 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
             && saved_idx != idx)
         {
             saved_idx = idx;
-            G_red_led::toggle();
+            led_timer = 100;
+            G_red_led::hi();
             print(g_dbg_uart, "APS ", idx, "-> pre:", aps_state.prediction, ", mtf:", metrics.MTF, ", fin:", aps_state.final_MTF_m_p, ", K:", K_predict, ", ", aps_state.aps_point_arr[idx], "(+/-", aps_delta, ")");
+            if (callback != nullptr)
+                callback(reinterpret_cast<uint8_t*>(&metrics));
             break;
         }
     }
 
-    i_filter = (i_filter + 1) & (MA_BUFFER_SIZE - 1);
+    if (G_red_led::read() && --led_timer == 0)
+        G_red_led::lo();
+
+    i_ma = (i_ma + 1) & (MA_BUFFER_SIZE - 1);
 }
 //            //проталкиваем буфер на единицу
 //            for (int i = 0; i < N - 1; i++)
@@ -521,7 +527,7 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
 //                G_red_led::toggle();
 //            }
 
-//        if ((i_filter & (MA_WINDOW_SIZE - 1)) == 0) G_green_led::toggle();
+//        if ((i_ma & (MA_WINDOW_SIZE - 1)) == 0) G_green_led::toggle();
 //}
 
 //            /* ќжидание начала нового цикла измерений APS (APS - angular position system) */
@@ -679,10 +685,10 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
 ////        }// end if STATE_NORMAL
 //
 //
-////        if(i_filter < (MA_WINDOW_SIZE - 1))
-////            i_filter++;
-////        else i_filter = 0;
-//        i_filter = (i_filter + 1) & (MA_WINDOW_SIZE - 1);
+////        if(i_ma < (MA_WINDOW_SIZE - 1))
+////            i_ma++;
+////        else i_ma = 0;
+//        i_ma = (i_ma + 1) & (MA_WINDOW_SIZE - 1);
 //
 //    } //end if not idle
 //

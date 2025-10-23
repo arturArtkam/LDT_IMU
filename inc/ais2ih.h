@@ -83,30 +83,6 @@ template<class Spi, class Cs_pin>
 class Ais2ih_ic
 {
 public:
-    typedef enum
-    {
-        MAIN_ID     = 0x01,
-        PART_ID     = 0x02,
-        XOUT_L      = 0x08,
-        XOUT_H,
-        YOUT_L,
-        YOUT_H,
-        ZOUT_L,
-        ZOUT_H,
-        COTR        = 0X12,
-        WHO_AM_I    = 0x13,
-        INS1        = 0x16,
-        INS2        = 0x17,
-        INS3        = 0x18,
-        CNTL1       = 0x1B,
-        CNTL2,
-        CNTL3,
-        CNTL4,
-        CNTL5,
-        CNTL6,
-        ODCNTL      = 0X21
-    } addr;
-
     struct Xyz_data
     {
         int16_t a_x;
@@ -128,19 +104,6 @@ public:
         Spi::mode_full_duplex_8t(cpol, cpha, baud_presc);
     }
 
-//    void write_reg(uint8_t addr, uint8_t data)
-//    {
-//        Cs_pin::lo();
-//
-//        while (!LL_SPI_IsActiveFlag_TXE(SPI1));
-//        LL_SPI_TransmitData8(SPI1, addr);
-//        while (!LL_SPI_IsActiveFlag_TXE(SPI1));
-//        LL_SPI_TransmitData8(SPI1, data);
-//        // Ждем завершения передачи
-//        while (LL_SPI_IsActiveFlag_BSY(SPI1));
-//
-//        Cs_pin::hi();
-//    }
     void write_reg(uint8_t addr, uint8_t data)
     {
         Cs_pin::lo();
@@ -270,13 +233,18 @@ public:
 
         Cs_pin::lo();
 
-        // 1. Отправляем адрес первого регистра (OUTX_L) с флагом чтения
+        while (!(read_reg(AIS_STATUS) & 0b00000001)) __NOP();
+
+        Cs_pin::hi();
+
+        Cs_pin::lo();
+        // Отправляем адрес первого регистра (OUTX_L) с флагом чтения
         while (!LL_SPI_IsActiveFlag_TXE(SPI1));
         LL_SPI_TransmitData8(SPI1, (0x80 | AIS_OUT_X_L));
         while (!LL_SPI_IsActiveFlag_RXNE(SPI1));
         (void)LL_SPI_ReceiveData8(SPI1); // Холостое чтение
 
-        // 2. Последовательное чтение 6 байт данных
+        // Последовательное чтение 6 байт данных
         for (int i = 0; i < 6; ++i)
         {
             while (!LL_SPI_IsActiveFlag_TXE(SPI1));

@@ -94,6 +94,8 @@ extern Ais2ih g_axel;
 extern L3gd20h g_gyro;
 
 void fill_aps_buff();
-void run_aps(Vec& axel, Vec& mag, Vec& gyro);
+// Тип функции обратного вызова
+typedef void (*aps_callback_t)(uint8_t* aps_data);
+void run_aps(Vec& axel, Vec& mag, Vec& gyro, aps_callback_t callback);
 
 #endif /* MAIN_H_INCLUDED */

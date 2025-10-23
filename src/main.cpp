@@ -281,6 +281,9 @@ void setup_spi_for_adc()
     LL_SPI_Enable(SPI1);
 }
 
+auto aps_callback = [&](uint8_t* data) {
+};
+
 typedef Pin<PORTB, 2, LL_GPIO_MODE_OUTPUT, LL_GPIO_SPEED_FREQ_HIGH, LL_GPIO_OUTPUT_PUSHPULL> SR_pin;
 volatile int32_t hmc_plus[3] = {0}, hmc_minus[3] = {0};
 volatile int32_t hmc[3] = {0}, offset[3] = {0};
@@ -309,30 +312,12 @@ int main()
 
     fill_aps_buff();
 
-//    g_axel.spibus_conf(LL_SPI_POLARITY_HIGH, LL_SPI_PHASE_2EDGE, LL_SPI_BAUDRATEPRESCALER_DIV64);
+    // В методе init инициализируется SPI, но коротом в том числе, висят аксель и гироскоп
     ads131.init();
     WakeUp();
     AddSyncFrameSetupADC(ads131);
-
-    SPI1->CR1 &= ~SPI_CR1_SPE;
-//    LL_SPI_SetClockPhase(SPI1, LL_SPI_PHASE_1EDGE);
-//    LL_SPI_SetClockPolarity(SPI1, LL_SPI_POLARITY_HIGH);
-    // 3. Настройка параметров SPI
-    LL_SPI_InitTypeDef SPI_InitStruct;
-    LL_SPI_StructInit(&SPI_InitStruct);
-    SPI_InitStruct.TransferDirection = LL_SPI_FULL_DUPLEX;
-    SPI_InitStruct.Mode = LL_SPI_MODE_MASTER;
-    SPI_InitStruct.DataWidth = LL_SPI_DATAWIDTH_8BIT;
-    SPI_InitStruct.ClockPolarity = LL_SPI_POLARITY_HIGH;
-    SPI_InitStruct.ClockPhase = LL_SPI_PHASE_2EDGE; // CPHA = 1
-    SPI_InitStruct.NSS = LL_SPI_NSS_SOFT;
-    SPI_InitStruct.BaudRate = LL_SPI_BAUDRATEPRESCALER_DIV128; // Выберите подходящий делитель
-    SPI_InitStruct.BitOrder = LL_SPI_MSB_FIRST;
-
-    LL_SPI_SetRxFIFOThreshold(SPI1, LL_SPI_RX_FIFO_TH_QUARTER);
-
-    LL_SPI_Init(SPI1, &SPI_InitStruct);
-    SPI1->CR1 |= SPI_CR1_SPE;
+    // для перенастройки SPI для акселерометра и гироскопа, следует вызвать функцию setup_spi_for_accelerometer()
+    setup_spi_for_accelerometer();
 
     if (!g_axel.init())
     {
@@ -414,7 +399,6 @@ int main()
 
                 mag = {(float)hmc[0], (float)hmc[1], -(float)hmc[2]};
 
-                DELAY_US(10);
                 Ais2ih::Xyz_data a_res = {0, 0, 0};
                 g_axel.read_all_axes(&a_res);
                 axel = {(float)a_res.a_x, (float)a_res.a_z, (float)a_res.a_y};
@@ -424,11 +408,11 @@ int main()
                 // Ось X гироскопа совпадает с осью Z прибора
                 gyro = {(float)w_res.w_z, (float)w_res.w_y, (float)w_res.w_x};
                 G_green_led::hi();
-                run_aps(axel, mag, gyro);
+                run_aps(axel, mag, gyro, aps_callback);
                 G_green_led::lo();
             }
 
-            if ((cnt > 3) && ((cnt & 0x1FF) == 0));//print(g_dbg_uart, mag.X, ", ", mag.Y, ", ", mag.Z, ", ", axel.X, ", ", axel.Y, ", ", axel.Z);
+            if ((cnt > 3) && ((cnt & 0x1FF) == 0)) print(g_dbg_uart, mag.X, ", ", mag.Y, ", ", mag.Z, ", ", axel.X, ", ", axel.Y, ", ", axel.Z);
             cnt++;
         }
 
