@@ -119,7 +119,7 @@ template <class PinCS,
 class ads131_t
 {
 private:
-    /* Глобальный указатель на объект для использования в статическом обработчике прерывания */
+    // --- Глобальный указатель на объект для использования в статическом обработчике прерывания ---
     static ads131_t*& instance()
     {
         static ads131_t* instance = nullptr;
@@ -138,13 +138,13 @@ private:
 
     void start_external_clock()
     {
-        // 1. Включить тактирование порта GPIOA для настройки пина PA8.
+        // Тактирование порта GPIOA для настройки пина PA8.
         if (!LL_AHB2_GRP1_IsEnabledClock(LL_AHB2_GRP1_PERIPH_GPIOA))
         {
             LL_AHB2_GRP1_EnableClock(LL_AHB2_GRP1_PERIPH_GPIOA);
         }
 
-        // 2. Настроить пин PA8 в режим Alternate Function для MCO
+        // PA8 - в режим Alternate Function для MCO
         LL_GPIO_InitTypeDef GPIO_InitStruct;
         LL_GPIO_StructInit(&GPIO_InitStruct);
         GPIO_InitStruct.Pin = LL_GPIO_PIN_8;
@@ -155,29 +155,16 @@ private:
         GPIO_InitStruct.Alternate = LL_GPIO_AF_0; // AF0 для MCO на PA8 в STM32G4
         LL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-        // 3. Настроить MCO в периферии RCC
-        // Источник: HSI (High-Speed Internal oscillator), который обычно работает на 16 МГц.
-        // Делитель: /2, чтобы получить 16 МГц / 2 = 8 МГц.
-        // HSI включен по умолчанию после сброса, поэтому дополнительно его включать не нужно.
+        // Настройка MCO в периферии RCC
         LL_RCC_ConfigMCO(LL_RCC_MCO1SOURCE_HSE, LL_RCC_MCO1_DIV_1);
     }
 public:
     void spi_init()
     {
-        // 1. Включить тактирование SPI1 и GPIO
+        // Тактирование SPI1, тактирование GPIOA включается в классе Pin
         LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_SPI1);
-        // Тактирование GPIOA включается в классе Pin
 
-        // 2. Настройка пинов SPI (SCK, MISO, MOSI)
-        // Предполагается, что пины SPI1 уже настроены в режим Alternate Function
-        // Например, для SPI1 это PA5 (SCK), PA6 (MISO), PA7 (MOSI)
-        // Их нужно будет сконфигурировать отдельно с помощью вашего класса Pin
-        // Pin<GPIOA, 5, LL_GPIO_MODE_ALTERNATE, ... >::init();
-        // Pin<GPIOA, 6, LL_GPIO_MODE_ALTERNATE, ... >::init();
-        // Pin<GPIOA, 7, LL_GPIO_MODE_ALTERNATE, ... >::init();
-        // И настроить для них AF5 (SPI1)
-        // LL_GPIO_SetAFPin_0_7(GPIOA, LL_GPIO_PIN_5, LL_GPIO_AF_5);
-        // ... и т.д.
+        // Настройка пинов SPI (SCK, MISO, MOSI) в режим Alternate Function
         typedef Af_pin<PORTA, 5, LL_GPIO_AF_5> Miso;
         typedef Af_pin<PORTA, 6, LL_GPIO_AF_5> Mosi;
         typedef Af_pin<PORTA, 7, LL_GPIO_AF_5> Clk;
@@ -186,7 +173,7 @@ public:
         Mosi::init();
         Clk::init();
 
-        // 3. Настройка параметров SPI
+        // Настройка параметров SPI
         LL_SPI_InitTypeDef SPI_InitStruct;
         LL_SPI_StructInit(&SPI_InitStruct);
         SPI_InitStruct.TransferDirection = LL_SPI_FULL_DUPLEX;
@@ -199,35 +186,33 @@ public:
         SPI_InitStruct.BitOrder = LL_SPI_MSB_FIRST;
 
         LL_SPI_SetRxFIFOThreshold(SPI1, LL_SPI_RX_FIFO_TH_QUARTER);
-
         LL_SPI_Init(SPI1, &SPI_InitStruct);
 
-        // 4. Включить SPI
         LL_SPI_Enable(SPI1);
     }
 private:
     void exti_init()
     {
-        // 1. Включить тактирование SYSCFG
+        // Тактирование SYSCFG
         LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_SYSCFG);
 
-        // 2. Связать линию EXTI с портом пина RDY
+        // Связывание линии EXTI с портом пина RDY
         LL_SYSCFG_SetEXTISource(PinRDY::port_p() == GPIOA ? LL_SYSCFG_EXTI_PORTA :
                                 PinRDY::port_p() == GPIOB ? LL_SYSCFG_EXTI_PORTB :
                                 PinRDY::port_p() == GPIOC ? LL_SYSCFG_EXTI_PORTC :
                                 LL_SYSCFG_EXTI_PORTD,
-                                PinRDY::pin_num()); // pin_n() должен возвращать номер пина (0-15)
+                                PinRDY::pin_num()); // pin_num() возвращает номер пина (0-15)
 
-        // 3. Настроить линию EXTI
+        // Настройка линии EXTI
         LL_EXTI_InitTypeDef EXTI_InitStruct;
         LL_EXTI_StructInit(&EXTI_InitStruct);
-        EXTI_InitStruct.Line_0_31 = PinRDY::pin_mask(); // pin_mask() должен возвращать 1 << pin_n
+        EXTI_InitStruct.Line_0_31 = PinRDY::pin_mask(); // pin_mask() должен возвращает 1 << pin_n
         EXTI_InitStruct.LineCommand = ENABLE;
         EXTI_InitStruct.Mode = LL_EXTI_MODE_IT;
         EXTI_InitStruct.Trigger = LL_EXTI_TRIGGER_FALLING; // Прерывание по спадающему фронту
         LL_EXTI_Init(&EXTI_InitStruct);
 
-        // 4. Прерывание в NVIC
+        // Прерывание в NVIC
         // EXTI0_IRQn, EXTI1_IRQn, EXTI2_IRQn, EXTI3_IRQn, EXTI4_IRQn,
         // EXTI9_5_IRQn (для пинов 5-9), EXTI15_10_IRQn (для пинов 10-15)
         uint8_t pin = PinRDY::pin_num();
@@ -248,9 +233,11 @@ private:
     void delay_ms(volatile uint32_t ms)
     {
         // Это очень грубая задержка, для коротких интервалов
-        for (uint32_t i = 0; i < ms; ++i) {
+        for (uint32_t i = 0; i < ms; ++i)
+        {
             volatile uint32_t counter = 0;
-            while (counter < 5000) { // Значение подобрано для ~168МГц
+            while (counter < 5000)   // Значение подобрано для ~168МГц
+            {
                 ++counter;
             }
         }
@@ -295,9 +282,6 @@ public:
         {
             LL_EXTI_ClearFlag_0_31(PinRDY::pin_mask());
             instance()->_data_ready_flag = true;
-//            if (instance()) {
-//                instance()->internal_dataready_handler();
-//            }
         }
     }
 
@@ -360,8 +344,7 @@ public:
 
     void set_next_command(const uint8_t* cmdData, uint8_t size)
     {
-        // Копируем данные команды в наш внутренний _tx_buffer
-        // Убедитесь, что size не превышает размер _tx_buffer
+        // Копируем данные команды во внутренний _tx_buffer
         if (size <= sizeof(_tx_buffer))
         {
             std::memcpy(_tx_buffer, cmdData, size);
