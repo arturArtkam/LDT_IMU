@@ -2,132 +2,18 @@
 #include "prj_logger.h"
 #include <math.h>
 
-constexpr size_t MA_BUFFER_SIZE = 32;
-constexpr uint32_t PULSE_WIDTH = 3;//ширина импульса в мс
-constexpr uint32_t BETH_PULSE_DELAY = 32 ;//время между импульсами
+constexpr size_t MA_BUFFER_SIZE = 32; //окно скользящего среднего для данных
+constexpr size_t MLD_BUFFER_SIZE = 32; // окно СЛО
 constexpr size_t PREDICTION_BUFFER_SIZE = 128;
+constexpr uint32_t PULSE_WIDTH = 3; // ширина импульса в мс
+constexpr uint32_t BETH_PULSE_DELAY = 32; // время между импульсами
 
-//static_assert((MA_WINDOW_SIZE > 0) && ((MA_WINDOW_SIZE & (MA_WINDOW_SIZE - 1)) == 0),
-//              "MA_WINDOW_SIZE must be a power of two for bitwise operations to work.");
+// --- Структуры для хранения калибровочных коэффициентов ---
+Cal G_offset_sens = { 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1 };
+Cal M_offset_sens = { 0, 0, 0, 0.157f, 0, 0, 0, 0.157f, 0, 0, 0, 0.157f };
+Cal W_offset_sens = { 0, 0, 0, 0.001221726f, 0, 0, 0, 0.001221726f, 0, 0, 0, 0.001221726f }; //rad per digit
 
-//float Gx, Gy, Gz, Bx, By, Bz, Wx, Wy, Wz;
-//float W_g;
-//float Wg_offset = 0;
-//float Wg_1000 = 0;
-
-//extern uint64_t Now;
-//extern uint64_t turnStartTime;
-//extern float aps_arr[17];
-//float aps_m_arr[17];
-//extern uartPrintMode uPm;
-//Aps_state apsMMode;
-//volatile bool is_moving = false;
-//изменить на переменные, если вводить в качестве настроек по юарт
-//int MA_WINDOW_SIZE;  //окно скользящего среднего для данных с АЦП 32
-//int MLD_WINDOW_SIZE; //окно CЛО
-//int delta; //добавляется 1, если угловое расстояние до следующего индекса мало
-float aps_delta = M_PI / 360; // - 1 градус (с какой точностью определяется момент замера)
-//float WMIN = 0.63;// rad/c
-//float WMAX = 18;// 6 об.с
-
-// для сырых, после скользящего среднего и калиброванных данных и скользящего среднего
-//int Wxyz[3];
-//struct Vec G_ma, M_ma, W_ma, G, M, W ;
-struct Vec G_Summa = {0, 0, 0};
-struct Vec M_Summa = {0, 0, 0};
-struct Vec W_Summa = {0, 0, 0};
-struct Vec G_Data[MA_BUFFER_SIZE];
-struct Vec M_Data[MA_BUFFER_SIZE];
-struct Vec W_Data[MA_BUFFER_SIZE];
-
-//для калибровок
-struct Cal G_offset_sens = { 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1 },
-           M_offset_sens = { 0, 0, 0, 0.157f, 0, 0, 0, 0.157f, 0, 0, 0, 0.157f },
-           W_offset_sens = { 0, 0, 0, 0.001221726f, 0, 0, 0, 0.001221726f, 0, 0, 0, 0.001221726f }; //rad per digit
-
-//           G_offset_sens_add = { 0,0,0,1,0,0,0,1,0,0,0,1 },
-//           M_offset_sens_add = { 0,0,0,1,0,0,0,1,0,0,0,1 },
-//           W_offset_sens_add = { 0,0,0,1,0,0,0,1,0,0,0,1 };
-//установки
-struct Set settings;
-//углы
-//float /*angle_aps, angle_zen, angle_azm, angle_aps_m, MTF, MTF_m_p, */ start_APS = 0;
-//volatile float angle_zen_deg, angle_aps_deg, angle_azm_deg, angle_aps_m_deg, MTF_deg;
-
-//для следящего алгоритма и СЛО
-//float G_modul, M_modul, W_modul;
-//float omega;
-float g_modul_buff[MA_BUFFER_SIZE], m_modul_buff[MA_BUFFER_SIZE], w_modul_buff[MA_BUFFER_SIZE];//для СЛО
-float slo_modul_g;
-float slo_modul_m;
-float slo_modul_w;
-//float MTF_buff[128];//буфер для следящего алгоритма
-float abc[3] = {0.0f};//коэфф. аппрох. полинома 2го порядка abc[0]*х*х + abc[1]*х + abc[2]
-//float delta = PI / 180; //вилка - 1 градус
-//float history_angle = (20 * M_PI) / 180; //угловая величина буфера аппрохимации
-//volatile float prediction;// для предсказанного значения
-int N = 128, K = 128;
-float K_predict = 0.5;
-extern float S_x[130][5];//предварительно посчитанные коэфф для прогноза
-//float aps_point = 0;
-//float aps_point_arr[16] = {0.0f};
-//float G_M_angle = 0;
-//uint16_t aps_idx = 0;
-//float sector = M_PI / 8;
-//float idx;
-//float rot = 1;
-//volatile uint32_t  tim = 0, pulse = 0, beth_pulse_delay_tim = 0, no_mov_delay_tim = 0;
-//volatile float angle_path_wg = 0;
-//volatile bool start_circle;
-//float MA_delay = 0;
-//volatile float delay = 0;
-//uint16_t error_sector_msg = 0;
-//uint16_t error_msg = 0;
-//bool interrupt_by_angle_path = false;
-
-//------------------------------------------------------------------------------------
-// для циклограммы направленного прибора
-//uint16_t aps_idx_out;
-//extern CYCLOGRAM cyclogram_state;
-//extern uint16_t tx_work_time_units;
-//extern uint16_t N_Tx;
-//uint16_t next_tx_start_units;
-//extern uint16_t operate_byte;
-//extern uint16_t freq;
-//int16_t tx_work_units_cntr;
-
-//bool last_Tx_is_sent;
-//extern bool finish;
-//extern uint16_t next_Tx_N ;
-
-//void variables_reset(void)
-//{
-//    tx_work_units_cntr = -1;
-////    next_tx_start_units = 0;
-////    last_Tx_is_sent = false;
-////    finish = false;
-////    next_Tx_N = 0;
-//}
-
-
-//constexpr size_t MLD_BUFFER_SIZE = 32;
-//
-//// Структура для хранения состояния обработки ОДНОГО сенсора
-//struct SensorProcessingState {
-//    Vec ma_sum = {0, 0, 0};
-//    Vec ma_buffer[MA_BUFFER_SIZE];
-//    float mld_buffer[MLD_BUFFER_SIZE];
-//    float mld_output = 0;
-//};
-
-// Структура для хранения калибровочных коэффициентов
-struct CalibrationData
-{
-    Cal G_cal;
-    Cal M_cal;
-    Cal W_cal;
-};
-
+// --- Данные, вычисляемые на каждой итерации ---
 struct CalculatedData
 {
     // Отфильтрованные и откалиброванные векторы
@@ -152,7 +38,7 @@ struct CalculatedData
     // Углы в градусах
     volatile float angle_zen_deg = 0.0f, angle_aps_deg = 0.0f, angle_azm_deg = 0.0f, angle_aps_m_deg = 0.0f, MTF_deg = 0.0f;
 };
-
+// --- Состояние основного алгоритма ---
 struct ApsAlgorithmState
 {
     // --- Состояние детектора движения ---
@@ -161,18 +47,16 @@ struct ApsAlgorithmState
 
     // --- Состояние алгоритма прогнозирования ---
     int32_t circ_idx = 0;
-    float mtf_buffer[PREDICTION_BUFFER_SIZE] = {0.0f};
-    float sin_mtf_buffer[PREDICTION_BUFFER_SIZE] = {0.0f};
-    float cos_mtf_buffer[PREDICTION_BUFFER_SIZE] = {0.0f};
-    float prediction = 0.0f;
-    float poly_coeffs[3] = {0.0f}; // Коэффициенты a,b,c
+    float mtf_buffer[PREDICTION_BUFFER_SIZE] = {0.0f}; // буфер для следящего алгоритма
+    float sin_mtf_buffer[PREDICTION_BUFFER_SIZE] = {0.0f}; // буфер для следящего алгоритма
+    float cos_mtf_buffer[PREDICTION_BUFFER_SIZE] = {0.0f}; // буфер для следящего алгоритма
+    float prediction = 0.0f; // для предсказанного значения
 
     // --- Состояние системы APS ---
     Aps_state mode = APS_READY; // Текущий режим (enum Aps_state)
     float start_APS = 0;
     float aps_point_arr[16] = {0.0f};
     uint16_t aps_idx = 0; // Счетчик массива угловых положений
-//    float rot = 1.0f; // Направление вращения
 
     // --- Таймеры и счетчики APS ---
     volatile uint32_t tim = 0;
@@ -184,6 +68,31 @@ struct ApsAlgorithmState
     // --- Финальный результат ---
     float final_MTF_m_p = 0.0f; // Смешанное значение MTF (измеренное + прогноз)
 };
+
+//int delta; //добавляется 1, если угловое расстояние до следующего индекса мало
+float aps_delta = M_PI / 360; // - 1 градус (с какой точностью определяется момент замера)
+
+// для сырых, после скользящего среднего и калиброванных данных и скользящего среднего
+Vec G_Summa = {0, 0, 0};
+Vec M_Summa = {0, 0, 0};
+Vec W_Summa = {0, 0, 0};
+Vec G_Data[MA_BUFFER_SIZE];
+Vec M_Data[MA_BUFFER_SIZE];
+Vec W_Data[MA_BUFFER_SIZE];
+
+//установки
+struct Set settings;
+
+//для следящего алгоритма и СЛО
+static float g_modul_buff[MLD_BUFFER_SIZE];
+static float m_modul_buff[MLD_BUFFER_SIZE];
+static float w_modul_buff[MLD_BUFFER_SIZE];
+static float slo_modul_g;
+static float slo_modul_m;
+static float slo_modul_w;
+
+//int N = 128, K = 128;
+static float K_predict = 0.5;
 
 void read_cal_and_settings()
 {
@@ -249,11 +158,9 @@ void read_cal_and_settings()
 }
 
 static uint16_t i_filter = 0;
-static CalibrationData callibrations;
-// Данные, вычисляемые на каждой итерации
-CalculatedData metrics;
-// Состояние основного алгоритма
-ApsAlgorithmState aps_state;
+//static CalibrationData callibrations;
+static CalculatedData metrics;
+static ApsAlgorithmState aps_state;
 
 /**
  * @brief Приводит угол (в радианах) к каноническому диапазону [-PI, PI].
@@ -309,17 +216,14 @@ void fill_aps_buff()
 
 void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
 {
-//    static uint16_t i_filter = 0;
-    N = settings.N;
-    K = settings.K;
-    K_predict = settings.K_PREDICT;
-    const int MA_WINDOW_SIZE = settings.MA_WINDOW_SIZE;
-    const int MLD_WINDOW_SIZE = settings.MLD_WINDOW_SIZE;
-    const int WMIN = settings.W_MIN;// rad/c
-    const int WMAX = settings.W_MAX;// rad/c
+
+    const int WMIN = settings.W_MIN; // rad/c
+    const int WMAX = settings.W_MAX; // rad/c
     const int AUTO_DELTA = settings.AUTO_DELTA;
-    aps_delta = settings.APS_DELTA;
     const float HISTORY_ANGLE = settings.HISTORY_ANGLE;
+
+    K_predict = settings.K_PREDICT;
+    aps_delta = settings.APS_DELTA;
 
     //скользящее среднее
     //вычитаем  значение   i ячейки массива окна из суммы всех значений окна скользящего среднего
@@ -338,9 +242,9 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
     W_Summa = vctr_summ(W_Summa, W_Data[i_filter]);
 
     // прибавляем обновленное  значение i ячейки массива к сумме всех значений окна скользящего среднего
-    metrics.G_ma = vctr_mltp_n(1.0 / MA_WINDOW_SIZE, G_Summa);
-    metrics.M_ma = vctr_mltp_n(1.0 / MA_WINDOW_SIZE, M_Summa);
-    metrics.W_ma = vctr_mltp_n(1.0 / MA_WINDOW_SIZE, W_Summa);
+    metrics.G_ma = vctr_mltp_n(1.0 / MA_BUFFER_SIZE, G_Summa);
+    metrics.M_ma = vctr_mltp_n(1.0 / MA_BUFFER_SIZE, M_Summa);
+    metrics.W_ma = vctr_mltp_n(1.0 / MA_BUFFER_SIZE, W_Summa);
 
     //окончательные калибровки
     //теперь вычитаем offset и умножаем на матрицу, где главная диагональ - это масштабы осей,
@@ -370,36 +274,36 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
     slo_modul_w = 0;
 
     // Проталкиваем буферы на единицу
-    const size_t bytes_to_move = sizeof(float) * (MLD_WINDOW_SIZE - 1);
+    const size_t bytes_to_move = sizeof(float) * (MLD_BUFFER_SIZE - 1);
 
     memmove(m_modul_buff, &m_modul_buff[1], bytes_to_move);
     memmove(g_modul_buff, &g_modul_buff[1], bytes_to_move);
     memmove(w_modul_buff, &w_modul_buff[1], bytes_to_move);
 
     //пишем в хвост буфера
-//            m_modul_buff[MLD_WINDOW_SIZE - 1] = M_modul;
-    g_modul_buff[MLD_WINDOW_SIZE - 1] = metrics.G_modul;
-//            w_modul_buff[MLD_WINDOW_SIZE - 1] = W_modul;
+//            m_modul_buff[MLD_BUFFER_SIZE - 1] = M_modul;
+    g_modul_buff[MLD_BUFFER_SIZE - 1] = metrics.G_modul;
+//            w_modul_buff[MLD_BUFFER_SIZE - 1] = W_modul;
     //считаем среднее
-    for (int i = 0; i < MLD_WINDOW_SIZE; i++)
+    for (int i = 0; i < MLD_BUFFER_SIZE; i++)
     {
 //                aver_modul_m +=  m_modul_buff[i];
         aver_modul_g += g_modul_buff[i];
         aver_modul_w += w_modul_buff[i];
     }
-//            aver_modul_m /= MLD_WINDOW_SIZE;
-    aver_modul_g /= MLD_WINDOW_SIZE;
-    aver_modul_w /= MLD_WINDOW_SIZE;
+//            aver_modul_m /= MLD_BUFFER_SIZE;
+    aver_modul_g /= MLD_BUFFER_SIZE;
+    aver_modul_w /= MLD_BUFFER_SIZE;
     //считаем среднелинейное отклонение
-    for (int i = 0; i < MLD_WINDOW_SIZE; i++)
+    for (int i = 0; i < MLD_BUFFER_SIZE; i++)
     {
 //                summ_modul_m += fabs(m_modul_buff[i] - aver_modul_m);
         summ_modul_g += fabs(g_modul_buff[i] - aver_modul_g);
 //                summ_modul_w += fabs(w_modul_buff[i] - aver_modul_w);
     }
-//            slo_modul_m = summ_modul_m / MLD_WINDOW_SIZE;
-    slo_modul_g = summ_modul_g / MLD_WINDOW_SIZE;
-//            slo_modul_w = summ_modul_w / MLD_WINDOW_SIZE;
+//            slo_modul_m = summ_modul_m / MLD_BUFFER_SIZE;
+    slo_modul_g = summ_modul_g / MLD_BUFFER_SIZE;
+//            slo_modul_w = summ_modul_w / MLD_BUFFER_SIZE;
 
     // СЛО для детекции движения
     if (slo_modul_g < settings.MOVEMENT_CMP_VALUE)
@@ -472,23 +376,23 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
     aps_state.sin_mtf_buffer[aps_state.circ_idx] = sin(metrics.MTF);
     aps_state.cos_mtf_buffer[aps_state.circ_idx] = cos(metrics.MTF);
 
-    // Вычисление K
+    // Вычисление размера окна для аппроксимации.
     int K = static_cast<int>(fabs(HISTORY_ANGLE / metrics.Wg_1000));
     if (K < 3) K = 3;
-    if (K > N) K = N;
+    if (K > PREDICTION_BUFFER_SIZE) K = PREDICTION_BUFFER_SIZE;
 
     // Вычисление задержки
-    const float ma_filter_lag_samples = (MA_WINDOW_SIZE - 1) / 2.0f;
+    const float ma_filter_lag_samples = (MA_BUFFER_SIZE - 1) / 2.0f;
 
     // Предсказание компонент, используя функцию для кольцевых буферов
-    float sin_pred = predict_component_circ(aps_state.sin_mtf_buffer, N, aps_state.circ_idx, K, ma_filter_lag_samples);
-    float cos_pred = predict_component_circ(aps_state.cos_mtf_buffer, N, aps_state.circ_idx, K, ma_filter_lag_samples);
+    float sin_pred = predict_component_circ(aps_state.sin_mtf_buffer, PREDICTION_BUFFER_SIZE, aps_state.circ_idx, K, ma_filter_lag_samples);
+    float cos_pred = predict_component_circ(aps_state.cos_mtf_buffer, PREDICTION_BUFFER_SIZE, aps_state.circ_idx, K, ma_filter_lag_samples);
 
     // Восстанавление угла из предсказанных компонент
     aps_state.prediction = atan2(sin_pred, cos_pred);
 
     // Сдвигаем индекс "головы" на следующую позицию. Быстрая версия, если N - степень двойки (128 - это 2^7):
-    aps_state.circ_idx = (aps_state.circ_idx + 1) & (N - 1);
+    aps_state.circ_idx = (aps_state.circ_idx + 1) & (PREDICTION_BUFFER_SIZE - 1);
 
     if (AUTO_DELTA == 1)
         aps_delta = settings.APS_DELTA + fabs(metrics.Wg_1000 * settings.K_delta);
@@ -512,7 +416,7 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw)
         }
     }
 
-    i_filter = (i_filter + 1) & (MA_WINDOW_SIZE - 1);
+    i_filter = (i_filter + 1) & (MA_BUFFER_SIZE - 1);
 }
 //            //проталкиваем буфер на единицу
 //            for (int i = 0; i < N - 1; i++)

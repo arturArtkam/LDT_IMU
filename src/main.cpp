@@ -302,10 +302,10 @@ int main()
 
     app_log::warning("Wrapper System ini ", clocks.SYSCLK_Frequency, "Hz ", clocks.HCLK_Frequency, "Hz");
 
-    /* считаем коэф для аппрох для всех К!!!!!!!!!!! */
-    for (int i = 0; i < 130; i++) {
-        S_X(S_x[i], i);
-    }
+//    /* считаем коэф для аппрох для всех К!!!!!!!!!!! */
+//    for (int i = 0; i < 130; i++) {
+//        S_X(S_x[i], i);
+//    }
 
     fill_aps_buff();
 
@@ -428,7 +428,7 @@ int main()
                 G_green_led::lo();
             }
 
-            if ((cnt > 3) && ((cnt & 0x1FF) == 0)) ;//print(g_dbg_uart, mag.X, ", ", mag.Y, ", ", mag.Z, ", ", axel.X, ", ", axel.Y, ", ", axel.Z);
+            if ((cnt > 3) && ((cnt & 0x1FF) == 0));//print(g_dbg_uart, mag.X, ", ", mag.Y, ", ", mag.Z, ", ", axel.X, ", ", axel.Y, ", ", axel.Z);
             cnt++;
         }
 
