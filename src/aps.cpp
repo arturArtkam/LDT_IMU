@@ -342,7 +342,7 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw, aps_callback_t callback
     }
 
     // Расчет MTF с нормализацией в диапазон (-PI, PI] (Magnetic Tool Face - Угол установки отклонителя)
-    metrics.MTF = wrap_to_pi(metrics.angle_aps_m) - metrics.G_M_angle;
+    metrics.MTF = wrap_to_pi(metrics.angle_aps_m);// - metrics.G_M_angle);
 
     // Зенитный угол
     metrics.angle_zen = atan2(sqrt(metrics.G.X * metrics.G.X + metrics.G.Y * metrics.G.Y), metrics.G.Z);
@@ -404,7 +404,7 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw, aps_callback_t callback
 
     float diff = wrap_to_pi(aps_state.prediction - metrics.MTF);
     float K_predict = (fabs(diff) > aps_delta) ? 1.0f : 0.5f;
-    aps_state.final_MTF_m_p = wrap_to_pi(metrics.MTF + diff * K_predict);
+    aps_state.final_MTF_m_p = wrap_to_pi(metrics.MTF + diff * K_predict - metrics.G_M_angle);
 
     static int8_t saved_idx = 0;
     static int16_t led_timer = 0;
