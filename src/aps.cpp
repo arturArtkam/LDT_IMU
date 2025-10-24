@@ -418,7 +418,7 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw, aps_callback_t callback
             saved_idx = idx;
             led_timer = 50;
             G_red_led::hi();
-            print(g_dbg_uart, "APS ", idx, "-> pre:", aps_state.prediction, ", mtf:", metrics.MTF, ", G-M:", metrics.G_M_angle, ", fin:", aps_state.final_MTF_m_p, ", K:", K_predict, ", ", aps_state.aps_point_arr[idx], "(+/-", aps_delta, ")");
+            print(g_dbg_uart, "APS ", idx, "-> pre:", aps_state.prediction, ", mtf:", metrics.MTF, ", G-M:", metrics.G_M_angle, ", fin:", aps_state.final_MTF_m_p, ", K:", K_predict, ", Wg:", metrics.W_g, ", ", aps_state.aps_point_arr[idx], "(+/-", aps_delta, ")");
             if (callback != nullptr)
                 callback(reinterpret_cast<uint8_t*>(&metrics));
             break;

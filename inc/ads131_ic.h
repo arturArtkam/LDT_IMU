@@ -23,6 +23,13 @@ extern "C" {
 // команда записи чтения
 #define PRE_RREG 0b101
 #define PRE_WREG 0b011
+
+// Константы для команды чтения
+#define HEADER_LEN 3
+#define DATA_POS 2
+#define READ_REGS_START 0
+#define READ_REGS_CNT 7
+
 struct rwreg
 {
 	uint16_t cnt: 7;
@@ -481,12 +488,6 @@ void AddSyncFrameSetupADC(AdcType& adc)
     // Регистрируем команду без обратного вызова
     adc.AddSyncFrameUserCmd(1, nullptr);
 }
-
-// Константы для команды чтения
-#define HEADER_LEN 3
-#define DATA_POS 2
-#define READ_REGS_START 0
-#define READ_REGS_CNT 7
 
 /**
  * @brief Отправляет команду на чтение регистров АЦП и устанавливает обработчик ответа.
