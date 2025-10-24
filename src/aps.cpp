@@ -262,7 +262,7 @@ void run_aps(Vec& axel_raw, Vec& mag_raw, Vec& gyro_raw, aps_callback_t callback
 
     // ¬ычитаетс€ смещение нул€ гироскопа (определ€етс€ на сто€нке).
     metrics.W_g -= metrics.Wg_offset;
-    metrics.Wg_1000 = metrics.W_g / 1000.0; ///rad per 1mc
+    metrics.Wg_1000 = metrics.W_g / 1000.0f; ///rad per 1mc
 
     //вычисл€ем щас, потом несколько рaз пригодитс€
     metrics.G_modul = modul(metrics.G);

@@ -97,144 +97,6 @@ Ads ads131;
 
 float S_x[130][5] = {0.0f, 0.0f};
 
-static bool Powered()
-{
-	return ads131.IsOn;
-}
-static void WakeUp(void)
-{
-	ads131.wake_up();
-}
-static void StandBy(bool fullStop)
-{
-	// выполняется вконце фрейма (по даташиту)
-	// (после разрешения прерываний sei() в обработчике ads131.DataReadyHandler();)
-	(void) fullStop;
-	ads131.add_sync_frame_standby();
-}
-
-/**
- * @brief Готовит АЦП к переходу в режим StandBy в конце следующего фрейма данных.
- * @tparam AdcType Тип экземпляра ads131_t.
- * @param adc Ссылка на объект АЦП.
- * @param fullStop Параметр оставлен для совместимости, но не используется.
- */
-template <typename AdcType>
-void StandBy(AdcType& adc, bool fullStop)
-{
-    // Просто регистрируем команду StandBy, которая будет выполнена в DataReadyHandler
-    adc.AddSyncFrameStandBy();
-}
-
-/**
- * @brief Отправляет команду на настройку регистров АЦП.
- * @tparam AdcType Тип экземпляра ads131_t.
- * @param adc Ссылка на объект АЦП.
- */
-template <typename AdcType>
-void AddSyncFrameSetupADC(AdcType& adc)
-{
-    uint8_t cmd_buffer[14] = {0};
-
-    union rwreg_u rw;
-    rw.wr.preambula = PRE_WREG;
-    rw.wr.adr = 3;      // Адрес первого регистра для записи (CLOCK)
-    rw.wr.cnt = 4;      // Количество регистров для записи - 1 (т.е. 4 регистра)
-    cmd_buffer[0] = rw.bt[1]; //h
-    cmd_buffer[1] = rw.bt[0]; //l
-
-    union clockreg_u clk;
-    clk.clk.ch0_en = 0;
-    clk.clk.ch1_en = 0;
-    clk.clk.ch2_en = 1;
-    clk.clk.ch3_en = 1;
-    clk.clk.ch4_en = 0;
-    clk.clk.ch5_en = 1;
-    clk.clk.ch6_en = 0;
-    clk.clk.xtal_dis = 1;
-    clk.clk.pwr = 2; // hi power hi resolution
-    clk.clk.osr = 0b011;//7; // max filter setup
-    cmd_buffer[2] = 0; // Пустой байт
-    cmd_buffer[3] = clk.bt[1]; //h
-    cmd_buffer[4] = clk.bt[0]; //l
-
-    union gain1reg_u g1;
-    // g1.gain.pgagain1 = 1;
-    cmd_buffer[5] = 0; // Пустой байт
-    cmd_buffer[6] = g1.bt[1]; //h no gain
-    cmd_buffer[7] = g1.bt[0]; //l no gain
-
-    union gain2reg_u g2;
-    // g2.gain.pgagain4 = 1;
-    cmd_buffer[8] = 0; // Пустой байт
-    cmd_buffer[9] = g2.bt[1]; //h no gain
-    cmd_buffer[10] = g2.bt[0]; //l no gain
-
-    union cfgreg_u cfg;
-    cfg.cfg.gc_en = 1; // global chop
-    cfg.cfg.gc_delay = 0b1000; //512 delay
-    cmd_buffer[11] = 0; // Пустой байт
-    cmd_buffer[12] = cfg.bt[1]; //h
-    cmd_buffer[13] = cfg.bt[0]; //l
-
-    // Загружаем сформированную команду в буфер АЦП
-    adc.set_next_command(cmd_buffer, sizeof(cmd_buffer));
-    // Регистрируем команду без обратного вызова
-    adc.AddSyncFrameUserCmd(1, nullptr);
-}
-
-// Константы для команды чтения
-#define HEADER_LEN 3
-#define DATA_POS 2
-#define READ_REGS_START 0
-#define READ_REGS_CNT 7
-
-/**
- * @brief Отправляет команду на чтение регистров АЦП и устанавливает обработчик ответа.
- * @tparam AdcType Тип экземпляра ads131_t.
- * @param adc Ссылка на объект АЦП.
- * @param Com Ссылка на объект для отправки ответа (например, ваш класс Com).
- * @param Uart Ссылка на объект Uart, где лежат буферы (если нужно).
- */
-template <typename AdcType, typename ComType>
-void AddSyncFrameReadRegsADC(AdcType& adc, ComType& com)
-{
-    uint8_t cmd_buffer[2] = {0};
-
-    union rwreg_u rw;
-    rw.wr.preambula = PRE_RREG;
-    rw.wr.adr = READ_REGS_START;
-    rw.wr.cnt = READ_REGS_CNT;
-    cmd_buffer[0] = rw.bt[1]; //h
-    cmd_buffer[1] = rw.bt[0]; //l
-
-    adc.setNextCommand(cmd_buffer, sizeof(cmd_buffer));
-
-    // Создаем лямбда-функцию в качестве коллбэка
-    // Она "захватывает" ссылки на adc и com, чтобы использовать их внутри
-    auto callback = [&](uint8_t cmd_code) {
-        // Тело старой функции cbReadADC теперь здесь
-
-        // Получаем доступ к rx_buffer напрямую из объекта adc
-        const uint8_t* adcRxBuffer = adc.getRxBuffer(); // Предполагается, что вы добавите геттер
-
-        uint8_t* out_ptr = &com.buf[DATA_POS];
-
-        // Пропускаем байты статуса и команды, начинаем с данных регистров
-        const uint8_t* data_ptr = adcRxBuffer + 3; // Пропускаем 3 байта ответа на команду
-
-        for (uint8_t i = 0; i < READ_REGS_CNT; i++)
-        {
-            *out_ptr++ = data_ptr[1]; // Копируем данные регистров
-            *out_ptr++ = data_ptr[0];
-            data_ptr += 3; // Переходим к следующему регистру (2 байта данных + 1 пустой)
-        }
-        com.CRCSend(HEADER_LEN + READ_REGS_CNT * 2);
-    };
-
-    // Регистрируем команду с нашим коллбэком
-    adc.AddSyncFrameUserCmd(2, callback);
-}
 
 /**
  * @brief Безопасно отключает модуль SPI, дожидаясь завершения всех операций.
@@ -281,7 +143,7 @@ void setup_spi_for_adc()
     LL_SPI_Enable(SPI1);
 }
 
-auto aps_callback = [&](uint8_t* data) {
+auto aps_callback = [](uint8_t* data) {
 };
 
 typedef Pin<PORTB, 2, LL_GPIO_MODE_OUTPUT, LL_GPIO_SPEED_FREQ_HIGH, LL_GPIO_OUTPUT_PUSHPULL> SR_pin;
@@ -314,7 +176,7 @@ int main()
 
     // В методе init инициализируется SPI, на коротом в том числе, висят аксель и гироскоп
     ads131.init();
-    WakeUp();
+    ads131.wake_up();
     AddSyncFrameSetupADC(ads131);
     // для перенастройки SPI для акселерометра и гироскопа, следует вызвать функцию setup_spi_for_accelerometer()
     setup_spi_for_accelerometer();
